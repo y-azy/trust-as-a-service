@@ -1,0 +1,105 @@
+{
+  "version": "1.0.0",
+  "defaultWeights": {
+    "recallsAndSafety": 0.25,
+    "complaintsAndDisputes": 0.20,
+    "policyAndWarranty": 0.20,
+    "reviews": 0.15,
+    "companyReputation": 0.10,
+    "priceTransparency": 0.05,
+    "platformTrust": 0.05
+  },
+  "verticalOverrides": {
+    "automotive": {
+      "recallsAndSafety": 0.35,
+      "complaintsAndDisputes": 0.20,
+      "policyAndWarranty": 0.15,
+      "reviews": 0.10,
+      "companyReputation": 0.10,
+      "priceTransparency": 0.05,
+      "platformTrust": 0.05
+    },
+    "appliances": {
+      "recallsAndSafety": 0.20,
+      "complaintsAndDisputes": 0.15,
+      "policyAndWarranty": 0.30,
+      "reviews": 0.15,
+      "companyReputation": 0.10,
+      "priceTransparency": 0.05,
+      "platformTrust": 0.05
+    },
+    "electronics": {
+      "recallsAndSafety": 0.15,
+      "complaintsAndDisputes": 0.20,
+      "policyAndWarranty": 0.25,
+      "reviews": 0.20,
+      "companyReputation": 0.10,
+      "priceTransparency": 0.05,
+      "platformTrust": 0.05
+    }
+  },
+  "metricNormalization": {
+    "recallCount": {
+      "type": "inverse",
+      "min": 0,
+      "max": 10,
+      "scale": "linear"
+    },
+    "complaintCount": {
+      "type": "inverse",
+      "min": 0,
+      "max": 100,
+      "scale": "log"
+    },
+    "warrantyMonths": {
+      "type": "direct",
+      "min": 0,
+      "max": 60,
+      "scale": "linear"
+    },
+    "avgRating": {
+      "type": "direct",
+      "min": 1,
+      "max": 5,
+      "scale": "linear"
+    },
+    "refundWindowDays": {
+      "type": "direct",
+      "min": 0,
+      "max": 90,
+      "scale": "linear"
+    }
+  },
+  "severityMapping": {
+    "recall": {
+      "classI": 5.0,
+      "classII": 3.0,
+      "classIII": 1.5,
+      "default": 2.0
+    },
+    "complaint": {
+      "resolved": 0.5,
+      "pending": 1.5,
+      "escalated": 3.0,
+      "unresolved": 4.0
+    }
+  },
+  "gradeThresholds": {
+    "A": 85,
+    "B": 70,
+    "C": 55,
+    "D": 40,
+    "F": 0
+  },
+  "missingDataDefaults": {
+    "useProxyWhenMissing": true,
+    "policyConfidenceDampener": 0.5,
+    "minimumEvidence": 3,
+    "defaultConfidence": 0.3
+  },
+  "recommendationWeights": {
+    "trust": 0.6,
+    "price": 0.3,
+    "warranty": 0.1
+  }
+}

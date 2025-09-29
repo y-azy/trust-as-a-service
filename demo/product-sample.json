@@ -1,0 +1,120 @@
+{
+  "sku": "HONDA-CIVIC-2022",
+  "name": "2022 Honda Civic",
+  "score": 82,
+  "grade": "B",
+  "confidence": 0.75,
+  "policyScore": 78,
+  "companyScore": 85,
+  "breakdown": [
+    {
+      "metric": "recallsAndSafety",
+      "raw": 2.0,
+      "normalized": 80,
+      "weight": 0.35,
+      "weighted": 28.0,
+      "evidenceIds": ["evt-nhtsa-001", "evt-nhtsa-002"]
+    },
+    {
+      "metric": "complaintsAndDisputes",
+      "raw": 15,
+      "normalized": 75,
+      "weight": 0.20,
+      "weighted": 15.0,
+      "evidenceIds": ["evt-cfpb-001", "evt-cfpb-002", "evt-cfpb-003"]
+    },
+    {
+      "metric": "policyAndWarranty",
+      "raw": 85,
+      "normalized": 85,
+      "weight": 0.15,
+      "weighted": 12.75,
+      "evidenceIds": ["evt-policy-001"]
+    },
+    {
+      "metric": "reviews",
+      "raw": 88,
+      "normalized": 88,
+      "weight": 0.10,
+      "weighted": 8.8,
+      "evidenceIds": []
+    },
+    {
+      "metric": "companyReputation",
+      "raw": 90,
+      "normalized": 90,
+      "weight": 0.10,
+      "weighted": 9.0,
+      "evidenceIds": []
+    },
+    {
+      "metric": "priceTransparency",
+      "raw": 85,
+      "normalized": 85,
+      "weight": 0.05,
+      "weighted": 4.25,
+      "evidenceIds": []
+    },
+    {
+      "metric": "platformTrust",
+      "raw": 82,
+      "normalized": 82,
+      "weight": 0.05,
+      "weighted": 4.1,
+      "evidenceIds": []
+    }
+  ],
+  "evidence": [
+    {
+      "id": "evt-nhtsa-001",
+      "type": "recall",
+      "source": "NHTSA",
+      "severity": 2.5,
+      "summary": "Rear view camera display may fail intermittently",
+      "sourceUrl": "https://www.nhtsa.gov/recalls?nhtsaId=22V123",
+      "date": "2022-03-15T00:00:00.000Z"
+    },
+    {
+      "id": "evt-cfpb-001",
+      "type": "complaint",
+      "source": "CFPB",
+      "severity": 1.5,
+      "summary": "Financing dispute resolved in customer's favor",
+      "sourceUrl": "https://www.consumerfinance.gov/data-research/consumer-complaints/",
+      "date": "2023-08-22T00:00:00.000Z"
+    },
+    {
+      "id": "evt-policy-001",
+      "type": "policy",
+      "source": "POLICY_PARSER",
+      "severity": 0,
+      "summary": "36-month/36,000-mile warranty covering parts & labor. Powertrain 60 months. Transferable.",
+      "sourceUrl": "https://owners.honda.com/warranty",
+      "date": "2024-01-01T00:00:00.000Z"
+    }
+  ],
+  "platformLinks": [
+    {
+      "platform": "Honda Direct",
+      "url": "https://automobiles.honda.com/civic",
+      "price": 24650,
+      "availability": "In Stock",
+      "trustScore": 90
+    },
+    {
+      "platform": "CarMax",
+      "url": "https://www.carmax.com/cars/honda/civic",
+      "price": 23900,
+      "availability": "Multiple Available",
+      "trustScore": 85
+    },
+    {
+      "platform": "Carvana",
+      "url": "https://www.carvana.com/cars/honda-civic",
+      "price": 24200,
+      "availability": "Check site",
+      "trustScore": 82
+    }
+  ],
+  "lastUpdated": "2025-09-29T15:30:00.000Z"
+}

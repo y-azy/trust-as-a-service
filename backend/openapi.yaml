@@ -1,0 +1,359 @@
+openapi: 3.0.0
+info:
+  title: Trust as a Service API
+  version: 1.0.0
+  description: API for trust scoring products, companies, and services
+servers:
+  - url: http://localhost:4000
+    description: Development server
+  - url: https://api.trustasaservice.com
+    description: Production server
+
+security:
+  - ApiKeyAuth: []
+
+paths:
+  /api/trust/product/{sku}:
+    get:
+      summary: Get trust score for a product
+      operationId: getProductTrust
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Product SKU
+      responses:
+        200:
+          description: Product trust information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductTrust'
+        404:
+          description: Product not found
+        500:
+          description: Internal server error
+
+  /api/trust/company/{id}:
+    get:
+      summary: Get trust score for a company
+      operationId: getCompanyTrust
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Company ID
+      responses:
+        200:
+          description: Company trust information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyTrust'
+        404:
+          description: Company not found
+        500:
+          description: Internal server error
+
+  /api/recommendations/{sku}:
+    get:
+      summary: Get product recommendations
+      operationId: getRecommendations
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Product SKU
+        - name: mode
+          in: query
+          schema:
+            type: string
+            enum: [effectivePrice, trustFirst, priceFirst]
+            default: trustFirst
+          description: Recommendation mode
+      responses:
+        200:
+          description: Product recommendations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Recommendations'
+        404:
+          description: Product not found
+        500:
+          description: Internal server error
+
+  /api/dispute:
+    post:
+      summary: Submit a dispute
+      operationId: submitDispute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DisputeRequest'
+      responses:
+        201:
+          description: Dispute created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DisputeResponse'
+        400:
+          description: Invalid request
+        500:
+          description: Internal server error
+
+  /health:
+    get:
+      summary: Health check endpoint
+      operationId: healthCheck
+      security: []
+      responses:
+        200:
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  uptime:
+                    type: number
+                  timestamp:
+                    type: string
+                    format: date-time
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    ProductTrust:
+      type: object
+      required:
+        - sku
+        - score
+        - grade
+        - breakdown
+        - evidence
+      properties:
+        sku:
+          type: string
+        name:
+          type: string
+        score:
+          type: number
+          minimum: 0
+          maximum: 100
+        grade:
+          type: string
+          enum: [A, B, C, D, F]
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        policyScore:
+          type: number
+          nullable: true
+        companyScore:
+          type: number
+          nullable: true
+        breakdown:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScoreBreakdown'
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/Evidence'
+        platformLinks:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlatformLink'
+        lastUpdated:
+          type: string
+          format: date-time
+
+    CompanyTrust:
+      type: object
+      required:
+        - id
+        - name
+        - score
+        - grade
+        - breakdown
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        domain:
+          type: string
+        score:
+          type: number
+          minimum: 0
+          maximum: 100
+        grade:
+          type: string
+          enum: [A, B, C, D, F]
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        breakdown:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScoreBreakdown'
+        products:
+          type: array
+          items:
+            type: object
+            properties:
+              sku:
+                type: string
+              name:
+                type: string
+              score:
+                type: number
+              grade:
+                type: string
+        lastUpdated:
+          type: string
+          format: date-time
+
+    ScoreBreakdown:
+      type: object
+      properties:
+        metric:
+          type: string
+        raw:
+          type: number
+        normalized:
+          type: number
+        weight:
+          type: number
+        weighted:
+          type: number
+        evidenceIds:
+          type: array
+          items:
+            type: string
+
+    Evidence:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [recall, complaint, review, policy, court, news, adverse_event]
+        source:
+          type: string
+        severity:
+          type: number
+        summary:
+          type: string
+        sourceUrl:
+          type: string
+        date:
+          type: string
+          format: date-time
+
+    PlatformLink:
+      type: object
+      properties:
+        platform:
+          type: string
+        url:
+          type: string
+        price:
+          type: number
+        availability:
+          type: string
+        trustScore:
+          type: number
+
+    Recommendations:
+      type: object
+      properties:
+        originalSku:
+          type: string
+        mode:
+          type: string
+        recommendations:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecommendedProduct'
+
+    RecommendedProduct:
+      type: object
+      properties:
+        sku:
+          type: string
+        name:
+          type: string
+        score:
+          type: number
+        grade:
+          type: string
+        price:
+          type: number
+        effectivePrice:
+          type: number
+        warrantyMonths:
+          type: integer
+        utility:
+          type: number
+        reasons:
+          type: array
+          items:
+            type: string
+        buyLink:
+          type: string
+
+    DisputeRequest:
+      type: object
+      required:
+        - entityType
+        - entityId
+        - reason
+        - contactEmail
+      properties:
+        entityType:
+          type: string
+          enum: [product, company]
+        entityId:
+          type: string
+        reason:
+          type: string
+        evidence:
+          type: string
+        contactEmail:
+          type: string
+          format: email
+
+    DisputeResponse:
+      type: object
+      properties:
+        disputeId:
+          type: string
+        status:
+          type: string
+        message:
+          type: string
+        createdAt:
+          type: string
+          format: date-time

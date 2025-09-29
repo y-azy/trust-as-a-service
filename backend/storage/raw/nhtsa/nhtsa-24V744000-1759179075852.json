@@ -1,0 +1,17 @@
+{
+  "Manufacturer": "Honda (American Honda Motor Co.)",
+  "NHTSACampaignNumber": "24V744000",
+  "parkIt": false,
+  "parkOutSide": false,
+  "overTheAirUpdate": false,
+  "NHTSAActionNumber": "EA23003",
+  "ReportReceivedDate": "03/10/2024",
+  "Component": "STEERING",
+  "Summary": "Honda (American Honda Motor Co.) is recalling certain 2023-2025 Acura Integra, Civic Type R, CR-V Hybrid, CR-V, HR-V, 2022-2025 Civic, Civic Hatchback, 2024-2025 Acura Integra Type S, 2025 CR-V Fuel Cell EV, Civic Hybrid, and Civic Hatchback Hybrid vehicles.  The steering gearbox assembly may have been manufactured incorrectly, which can cause excessive internal friction and lead to difficulty steering the vehicle.",
+  "Consequence": "Difficulty steering can increase the risk of a crash.",
+  "Remedy": "Dealers will replace the worm gear spring and redistribute or add grease as necessary, free of charge.  Owner notification letters were mailed November 18, 2024.  Owners may contact Honda Customer Service at 1-888-234-2138.   Honda's numbers for this recall are SJS, MJU, QJT and VJV.",
+  "Notes": "Owners may also contact the National Highway Traffic Safety Administration Vehicle Safety Hotline at 1-888-327-4236 (TTY 1-800-424-9153) or go to nhtsa.gov.",
+  "ModelYear": "2022",
+  "Make": "HONDA",
+  "Model": "CIVIC"
+}

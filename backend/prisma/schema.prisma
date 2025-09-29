@@ -1,0 +1,73 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Company {
+  id          String   @id @default(cuid())
+  name        String
+  domain      String?  @unique
+  industry    String?
+  country     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  products    Product[]
+  scores      Score[]
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  sku         String   @unique
+  company     Company? @relation(fields: [companyId], references: [id])
+  companyId   String?
+  name        String
+  category    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  events      Event[]
+  scores      Score[]
+}
+
+model Event {
+  id           String   @id @default(cuid())
+  companyId    String?
+  productId    String?
+  source       String
+  type         String   // 'recall'|'complaint'|'review'|'policy'|'court'|'news'|'adverse_event'
+  severity     Float?
+  detailsJson  Json?
+  rawUrl       String?
+  rawRef       String?  // object storage key
+  parsedAt     DateTime?
+  createdAt    DateTime @default(now())
+
+  product      Product? @relation(fields: [productId], references: [id])
+}
+
+model Score {
+  id            String   @id @default(cuid())
+  companyId     String?
+  productId     String?
+  scope         String   // 'company'|'product'|'service'
+  score         Float
+  breakdownJson Json
+  configVersion String
+  confidence    Float
+  evidenceIds   String[] // list of Event ids
+  createdAt     DateTime @default(now())
+
+  company       Company? @relation(fields: [companyId], references: [id])
+  product       Product? @relation(fields: [productId], references: [id])
+}
+
+model Source {
+  id        String   @id @default(cuid())
+  name      String
+  domain    String
+  metaJson  Json?
+  createdAt DateTime @default(now())
+}

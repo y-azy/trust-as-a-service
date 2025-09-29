@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: trustuser
+      POSTGRES_PASSWORD: trustpass
+      POSTGRES_DB: trustdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - trust-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - trust-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      DATABASE_URL: postgresql://trustuser:trustpass@postgres:5432/trustdb?schema=public
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+      PORT: 4000
+      API_KEY_MAIN: changeme
+      FRONTEND_URL: http://localhost:3000
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      NEWSAPI_KEY: ${NEWSAPI_KEY:-}
+      TRUSTPILOT_API_KEY: ${TRUSTPILOT_API_KEY:-}
+      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY:-}
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - trust-network
+    volumes:
+      - ./backend/storage:/app/storage
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      NEXT_PUBLIC_API_KEY: changeme
+    depends_on:
+      - backend
+    networks:
+      - trust-network
+
+networks:
+  trust-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
