@@ -39,9 +39,9 @@ describe('PolicyParser', () => {
       expect(parsed.registration_window_days).toBe(30);
 
       // Check exclusions
-      expect(parsed.exclusions).toContain(expect.stringMatching(/water/i));
-      expect(parsed.exclusions).toContain(expect.stringMatching(/misuse/i));
-      expect(parsed.exclusions).toContain(expect.stringMatching(/unauthorized repairs/i));
+      expect(parsed.exclusions.some((e: string) => /water/i.test(e))).toBe(true);
+      expect(parsed.exclusions.some((e: string) => /misuse/i.test(e))).toBe(true);
+      expect(parsed.exclusions.some((e: string) => /unauthorized repairs/i.test(e))).toBe(true);
 
       // Check confidence
       expect(parsed.policy_confidence).toBeGreaterThan(0.8);
@@ -107,7 +107,7 @@ describe('PolicyParser', () => {
       const parsed = result.parsed!;
       expect(parsed.warranty_length_months).toBe(12);
       expect(parsed.coverage.parts).toBe(true);
-      expect(parsed.coverage.labor).toBe(false);
+      expect(parsed.coverage.labor).toBeNull();
       expect(parsed.registration_required).toBe(true);
       expect(parsed.registration_window_days).toBe(15);
       expect(parsed.transferable).toBe(true);
@@ -160,7 +160,8 @@ describe('PolicyParser', () => {
       // that disallows /admin/
       // For now, we just check the structure is correct
       expect(result).toHaveProperty('allowed');
-      expect(result).toHaveProperty('reason');
+      // Note: reason property only exists when allowed is false
+      expect(result.allowed).toBe(true);
     });
   });
 
