@@ -54,6 +54,16 @@ class RedisBackend implements CacheBackend {
       console.error('Redis set error:', error);
     }
   }
+
+  // Cleanup on shutdown
+  async disconnect(): Promise<void> {
+    try {
+      await this.client.quit();
+      console.log('Redis connection closed');
+    } catch (error) {
+      console.error('Redis disconnect error:', error);
+    }
+  }
 }
 
 class InMemoryBackend implements CacheBackend {
@@ -156,5 +166,20 @@ export function generateCacheKey(prefix: string, version: string, input: string)
   return `${prefix}:${version}:${hash}`;
 }
 
+/**
+ * Shutdown cache connections (for testing cleanup)
+ */
+export async function shutdownCache(): Promise<void> {
+  try {
+    if (cacheBackend instanceof RedisBackend) {
+      await (cacheBackend as any).disconnect();
+    } else if (cacheBackend instanceof InMemoryBackend) {
+      (cacheBackend as any).destroy();
+    }
+  } catch (error) {
+    console.warn('Cache shutdown failed:', error);
+  }
+}
+
 // Export backend for testing
-export { cacheBackend, InMemoryBackend };
+export { cacheBackend, InMemoryBackend, RedisBackend };
