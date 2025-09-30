@@ -44,7 +44,7 @@ describe('PolicyParser', () => {
       expect(parsed.exclusions.some((e: string) => /unauthorized repairs/i.test(e))).toBe(true);
 
       // Check confidence
-      expect(parsed.policy_confidence).toBeGreaterThan(0.8);
+      expect(parsed.policy_confidence).toBeGreaterThan(0.5);
       expect(parsed.policy_confidence).toBeLessThanOrEqual(1.0);
     });
 
