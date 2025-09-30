@@ -88,19 +88,28 @@ export class CFPBConnector {
       try {
         const complaint = complaintData._source || complaintData;
 
-        // Check if complaint already exists
-        const existingEvent = await prisma.event.findFirst({
+        // Check if complaint already exists - for SQLite we need to check differently
+        const existingEvents = await prisma.event.findMany({
           where: {
             source: 'CFPB',
             type: 'complaint',
-            detailsJson: {
-              path: ['complaint_id'],
-              equals: complaint.complaint_id
-            }
+            companyId
           }
         });
 
-        if (existingEvent) {
+        // Parse JSON and check for duplicate complaint_id
+        const exists = existingEvents.some(event => {
+          try {
+            const details = typeof event.detailsJson === 'string'
+              ? JSON.parse(event.detailsJson)
+              : event.detailsJson;
+            return details?.complaint_id === complaint.complaint_id;
+          } catch {
+            return false;
+          }
+        });
+
+        if (exists) {
           console.log(`Complaint ${complaint.complaint_id} already exists, skipping`);
           continue;
         }
@@ -115,7 +124,7 @@ export class CFPBConnector {
             source: 'CFPB',
             type: 'complaint',
             severity: this.calculateSeverity(complaint),
-            detailsJson: {
+            detailsJson: JSON.stringify({
               complaint_id: complaint.complaint_id,
               date_received: complaint.date_received,
               product: complaint.product,
@@ -130,7 +139,7 @@ export class CFPBConnector {
               timely_response: complaint.timely_response,
               state: complaint.state,
               zip_code: complaint.zip_code?.substring(0, 3) + 'XX' // Privacy protection
-            },
+            }),
             rawUrl: `https://www.consumerfinance.gov/data-research/consumer-complaints/search/detail/${complaint.complaint_id}`,
             rawRef,
             parsedAt: new Date()
@@ -169,8 +178,8 @@ export class CFPBConnector {
       const company = await prisma.company.findFirst({
         where: {
           OR: [
-            { name: { contains: companyName, mode: 'insensitive' } },
-            { domain: { contains: companyName.toLowerCase().replace(/\s+/g, ''), mode: 'insensitive' } }
+            { name: { contains: companyName } },
+            { domain: { contains: companyName.toLowerCase().replace(/\s+/g, '') } }
           ]
         }
       });

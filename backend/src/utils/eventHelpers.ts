@@ -32,10 +32,13 @@ export function generateEventSummary(event: any): string {
  * Assign a letter grade based on a numeric score
  */
 export function getGrade(score: number): string {
-  if (score >= 85) return 'A';
-  if (score >= 70) return 'B';
-  if (score >= 55) return 'C';
-  if (score >= 40) return 'D';
+  // Convert to percentage if score is between 0 and 1
+  const percentScore = score <= 1 ? score * 100 : score;
+
+  if (percentScore >= 85) return 'A';
+  if (percentScore >= 70) return 'B';
+  if (percentScore >= 55) return 'C';
+  if (percentScore >= 40) return 'D';
   return 'F';
 }
 

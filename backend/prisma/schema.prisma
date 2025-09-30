@@ -1,5 +1,5 @@
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -39,7 +39,7 @@ model Event {
   source       String
   type         String   // 'recall'|'complaint'|'review'|'policy'|'court'|'news'|'adverse_event'
   severity     Float?
-  detailsJson  Json?
+  detailsJson  String?
   rawUrl       String?
   rawRef       String?  // object storage key
   parsedAt     DateTime?
@@ -54,10 +54,10 @@ model Score {
   productId     String?
   scope         String   // 'company'|'product'|'service'
   score         Float
-  breakdownJson Json
+  breakdownJson String
   configVersion String
   confidence    Float
-  evidenceIds   String[] // list of Event ids
+  evidenceIds   String // comma-separated list of Event ids
   createdAt     DateTime @default(now())
 
   company       Company? @relation(fields: [companyId], references: [id])
@@ -68,6 +68,6 @@ model Source {
   id        String   @id @default(cuid())
   name      String
   domain    String
-  metaJson  Json?
+  metaJson  String?
   createdAt DateTime @default(now())
 }

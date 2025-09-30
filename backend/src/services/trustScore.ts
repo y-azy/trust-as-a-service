@@ -239,12 +239,12 @@ class TrustScoreService {
       totalWeight += weight;
     }
 
-    const score = totalWeight > 0 ? totalWeightedScore / totalWeight : 0;
+    const score = totalWeight > 0 ? (totalWeightedScore / totalWeight) / 100 : 0;
     const confidence = this.calculateConfidence(events.length);
 
     return {
       score: Math.round(score * 100) / 100,
-      grade: this.getGrade(score),
+      grade: this.getGrade(score * 100),
       breakdown,
       configVersion: config.version,
       confidence
@@ -284,12 +284,12 @@ class TrustScoreService {
       totalWeight += weight;
     }
 
-    const score = totalWeight > 0 ? totalWeightedScore / totalWeight : 0;
+    const score = totalWeight > 0 ? (totalWeightedScore / totalWeight) / 100 : 0;
     const confidence = this.calculateConfidence(events.length, parsedPolicy?.policy_confidence);
 
     return {
       score: Math.round(score * 100) / 100,
-      grade: this.getGrade(score),
+      grade: this.getGrade(score * 100),
       breakdown,
       configVersion: config.version,
       confidence
@@ -328,12 +328,12 @@ class TrustScoreService {
       totalWeight += weight;
     }
 
-    const score = totalWeight > 0 ? totalWeightedScore / totalWeight : 0;
+    const score = totalWeight > 0 ? (totalWeightedScore / totalWeight) / 100 : 0;
     const confidence = this.calculateConfidence(events.length);
 
     return {
       score: Math.round(score * 100) / 100,
-      grade: this.getGrade(score),
+      grade: this.getGrade(score * 100),
       breakdown,
       configVersion: config.version,
       confidence
@@ -355,10 +355,10 @@ class TrustScoreService {
     const scoreData: any = {
       scope: entityType,
       score: result.score,
-      breakdownJson: result.breakdown,
+      breakdownJson: JSON.stringify(result.breakdown),
       configVersion: result.configVersion,
       confidence: result.confidence,
-      evidenceIds: result.breakdown.flatMap(b => b.evidenceIds)
+      evidenceIds: result.breakdown.flatMap(b => b.evidenceIds).join(',')
     };
 
     if (entityType === 'product') {

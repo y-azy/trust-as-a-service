@@ -69,8 +69,14 @@ export const trustController = {
         companyScore = companyScoreRecord?.score || null;
       }
 
+      // Parse JSON fields for events
+      const eventsWithParsedJson = product.events.map(event => ({
+        ...event,
+        detailsJson: typeof event.detailsJson === 'string' ? JSON.parse(event.detailsJson) : event.detailsJson
+      }));
+
       // Format evidence
-      const evidence = product.events.map(event => ({
+      const evidence = eventsWithParsedJson.map(event => ({
         id: event.id,
         type: event.type,
         source: event.source,
@@ -83,6 +89,11 @@ export const trustController = {
       // Get platform links
       const platformLinks = await getPlatformLinks(product.sku);
 
+      // Parse breakdownJson if it's a string
+      const breakdownParsed = typeof latestScore.breakdownJson === 'string'
+        ? JSON.parse(latestScore.breakdownJson)
+        : latestScore.breakdownJson;
+
       // Build response
       const response = {
         sku: product.sku,
@@ -90,9 +101,9 @@ export const trustController = {
         score: latestScore.score,
         grade: getGrade(latestScore.score),
         confidence: latestScore.confidence,
-        policyScore: extractPolicyScore(latestScore.breakdownJson),
+        policyScore: extractPolicyScore(breakdownParsed),
         companyScore,
-        breakdown: latestScore.breakdownJson,
+        breakdown: breakdownParsed,
         evidence: evidence.slice(0, 3), // Top 3 evidence items
         platformLinks,
         lastUpdated: latestScore.createdAt
@@ -164,6 +175,11 @@ export const trustController = {
         grade: product.scores[0] ? getGrade(product.scores[0].score) : null
       }));
 
+      // Parse breakdownJson if it's a string
+      const breakdownParsed = typeof latestScore.breakdownJson === 'string'
+        ? JSON.parse(latestScore.breakdownJson)
+        : latestScore.breakdownJson;
+
       // Build response
       const response = {
         id: company.id,
@@ -172,7 +188,7 @@ export const trustController = {
         score: latestScore.score,
         grade: getGrade(latestScore.score),
         confidence: latestScore.confidence,
-        breakdown: latestScore.breakdownJson,
+        breakdown: breakdownParsed,
         products: products.slice(0, 10), // Top 10 products
         lastUpdated: latestScore.createdAt
       };

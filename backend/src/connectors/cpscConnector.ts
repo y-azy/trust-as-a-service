@@ -2,6 +2,7 @@ import axios from 'axios';
 import { PrismaClient } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as xml2js from 'xml2js';
 
 declare const require: NodeRequire;
 declare const module: NodeModule;
@@ -9,7 +10,9 @@ declare const module: NodeModule;
 const prisma = new PrismaClient();
 
 export class CPSCConnector {
-  private apiUrl = 'https://www.saferproducts.gov/api/v1';
+  // Using the official CPSC public API endpoint
+  private apiUrl = 'https://www.cpsc.gov/cgibin/CPSCUpcWS/CPSCUpcSvc.asmx';
+  private recallApiUrl = 'https://www.cpsc.gov/Recalls/CPSC-Recalls-RestWebService.ashx';
   private storageDir = path.join(__dirname, '../../storage/raw/cpsc');
 
   constructor() {
@@ -18,35 +21,14 @@ export class CPSCConnector {
     }
   }
 
-  private async checkRobotsTxt(): Promise<boolean> {
-    try {
-      const response = await axios.get('https://www.cpsc.gov/robots.txt');
-      const content = response.data;
-
-      // Check if API access is allowed
-      if (content.includes('Disallow: /api') || content.includes('Disallow: /')) {
-        console.log('CPSC API access restricted by robots.txt');
-        return false;
-      }
-      return true;
-    } catch {
-      // If robots.txt is not accessible, assume allowed
-      return true;
-    }
-  }
-
   async fetchRecalls(searchTerm: string, limit: number = 10): Promise<any[]> {
-    const allowed = await this.checkRobotsTxt();
-    if (!allowed) {
-      console.log('CPSC connector disabled due to robots.txt restrictions');
-      return [];
-    }
-
     try {
-      // Using CPSC's REST API endpoint
-      const url = `${this.apiUrl}/recalls?format=json&limit=${limit}&search=${encodeURIComponent(searchTerm)}`;
+      // Try the REST API first (if available)
+      const restUrl = `${this.recallApiUrl}?format=json&RecallTitle=${encodeURIComponent(searchTerm)}`;
 
-      const response = await axios.get(url, {
+      console.log(`Fetching CPSC recalls from REST API: ${restUrl}`);
+
+      const response = await axios.get(restUrl, {
         timeout: 10000,
         headers: {
           'User-Agent': 'TrustAsAService/1.0',
@@ -54,19 +36,79 @@ export class CPSCConnector {
         }
       });
 
-      if (response.data && Array.isArray(response.data)) {
-        return response.data;
+      if (response.data) {
+        const recalls = Array.isArray(response.data) ? response.data : [response.data];
+        return recalls.slice(0, limit);
       }
 
-      // Fallback to scraping-free alternative if API doesn't work
-      console.log('CPSC API did not return expected format, using stub data');
       return [];
     } catch (error: any) {
-      if (error.response?.status === 403) {
-        console.log('CPSC API access forbidden. Creating connector stub.');
-        this.createStub();
+      // If REST API fails, try the SOAP API for UPC lookup
+      console.log('REST API failed, trying alternative approach');
+      return this.fetchRecallsByUPC('', searchTerm, limit);
+    }
+  }
+
+  async fetchRecallsByUPC(upc: string, description: string = '', limit: number = 10): Promise<any[]> {
+    try {
+      // Build SOAP request for the CPSC UPC Web Service
+      const soapBody = `<?xml version="1.0" encoding="utf-8"?>
+        <soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                      xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                      xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+          <soap:Body>
+            <getRecallByWord xmlns="https://www.cpsc.gov">
+              <message>${description}</message>
+              <password></password>
+              <userId>public</userId>
+            </getRecallByWord>
+          </soap:Body>
+        </soap:Envelope>`;
+
+      const response = await axios.post(this.apiUrl, soapBody, {
+        timeout: 10000,
+        headers: {
+          'Content-Type': 'text/xml; charset=utf-8',
+          'SOAPAction': '"https://www.cpsc.gov/getRecallByWord"',
+          'User-Agent': 'TrustAsAService/1.0'
+        }
+      });
+
+      // Parse SOAP response
+      const parser = new xml2js.Parser({ explicitArray: false });
+      const result = await parser.parseStringPromise(response.data);
+
+      const recalls = this.extractRecallsFromSoapResponse(result);
+      return recalls.slice(0, limit);
+    } catch (error: any) {
+      console.error('Error fetching CPSC recalls via SOAP:', error.message);
+      return [];
+    }
+  }
+
+  private extractRecallsFromSoapResponse(soapResponse: any): any[] {
+    try {
+      const envelope = soapResponse['soap:Envelope'] || soapResponse['Envelope'];
+      const body = envelope?.['soap:Body'] || envelope?.['Body'];
+      const responseData = body?.['getRecallByWordResponse'];
+      const resultData = responseData?.['getRecallByWordResult'];
+
+      if (!resultData) return [];
+
+      // Parse the result if it's a JSON string
+      if (typeof resultData === 'string') {
+        try {
+          const parsed = JSON.parse(resultData);
+          return Array.isArray(parsed) ? parsed : [parsed];
+        } catch {
+          // If not JSON, return empty array
+          return [];
+        }
       }
-      console.error('Error fetching CPSC recalls:', error.message);
+
+      return Array.isArray(resultData) ? resultData : [resultData];
+    } catch (error) {
+      console.error('Error extracting recalls from SOAP response:', error);
       return [];
     }
   }
@@ -100,18 +142,39 @@ The CPSC/SaferProducts.gov API requires authentication or has access restriction
 
     for (const recall of recalls) {
       try {
-        const existingEvent = await prisma.event.findFirst({
+        // For SQLite, we need to search by converting the JSON string
+        const recallNumber = recall.RecallNumber || recall.recall_number;
+
+        const existingEvents = await prisma.event.findMany({
           where: {
             source: 'CPSC',
-            type: 'recall',
-            detailsJson: {
-              path: ['recall_number'],
-              equals: recall.RecallNumber || recall.recall_number
-            }
+            type: 'recall'
           }
         });
 
-        if (existingEvent) continue;
+        // Check if recall already exists by parsing the JSON
+        const exists = existingEvents.some(event => {
+          try {
+            const details = typeof event.detailsJson === 'string'
+              ? JSON.parse(event.detailsJson)
+              : event.detailsJson;
+            return details?.recall_number === recallNumber;
+          } catch {
+            return false;
+          }
+        });
+
+        if (exists) continue;
+
+        // For SQLite, we need to store JSON as a string
+        const detailsJson = JSON.stringify({
+          recall_number: recall.RecallNumber || recall.recall_number,
+          title: recall.Title || recall.title,
+          description: recall.Description || recall.description,
+          hazard: recall.Hazard || recall.hazard,
+          remedy: recall.Remedy || recall.remedy,
+          recall_date: recall.RecallDate || recall.recall_date
+        });
 
         await prisma.event.create({
           data: {
@@ -120,15 +183,8 @@ The CPSC/SaferProducts.gov API requires authentication or has access restriction
             source: 'CPSC',
             type: 'recall',
             severity: this.calculateSeverity(recall),
-            detailsJson: {
-              recall_number: recall.RecallNumber || recall.recall_number,
-              title: recall.Title || recall.title,
-              description: recall.Description || recall.description,
-              hazard: recall.Hazard || recall.hazard,
-              remedy: recall.Remedy || recall.remedy,
-              recall_date: recall.RecallDate || recall.recall_date
-            },
-            rawUrl: recall.URL || `https://www.cpsc.gov/Recalls/${recall.RecallNumber}`,
+            detailsJson,
+            rawUrl: recall.URL || `https://www.cpsc.gov/Recalls/${recall.RecallNumber || recall.recall_number}`,
             parsedAt: new Date()
           }
         });
