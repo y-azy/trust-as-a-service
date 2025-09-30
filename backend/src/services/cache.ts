@@ -1,5 +1,8 @@
 import Redis from 'ioredis';
 import crypto from 'crypto';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 /**
  * Cache service with Redis fallback to in-memory Map
@@ -9,6 +12,8 @@ import crypto from 'crypto';
 interface CacheBackend {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, ttlSeconds?: number): Promise<void>;
+  del(key: string): Promise<void>;
+  delByPrefix(prefix: string): Promise<number>;
 }
 
 class RedisBackend implements CacheBackend {
@@ -52,6 +57,42 @@ class RedisBackend implements CacheBackend {
       }
     } catch (error) {
       console.error('Redis set error:', error);
+    }
+  }
+
+  async del(key: string): Promise<void> {
+    try {
+      await this.client.del(key);
+    } catch (error) {
+      console.error('Redis del error:', error);
+    }
+  }
+
+  async delByPrefix(prefix: string): Promise<number> {
+    try {
+      let cursor = '0';
+      let deletedCount = 0;
+
+      do {
+        const [newCursor, keys] = await this.client.scan(
+          cursor,
+          'MATCH',
+          `${prefix}*`,
+          'COUNT',
+          100
+        );
+        cursor = newCursor;
+
+        if (keys.length > 0) {
+          const deleted = await this.client.unlink(...keys);
+          deletedCount += deleted;
+        }
+      } while (cursor !== '0');
+
+      return deletedCount;
+    } catch (error) {
+      console.error('Redis delByPrefix error:', error);
+      return 0;
     }
   }
 
@@ -108,6 +149,23 @@ class InMemoryBackend implements CacheBackend {
     this.cache.set(key, entry);
   }
 
+  async del(key: string): Promise<void> {
+    this.cache.delete(key);
+  }
+
+  async delByPrefix(prefix: string): Promise<number> {
+    let deletedCount = 0;
+
+    for (const key of this.cache.keys()) {
+      if (key.startsWith(prefix)) {
+        this.cache.delete(key);
+        deletedCount++;
+      }
+    }
+
+    return deletedCount;
+  }
+
   // For testing: clear cache
   clear() {
     this.cache.clear();
@@ -158,12 +216,107 @@ export async function cacheSet(key: string, value: any, ttlSeconds?: number): Pr
 }
 
 /**
+ * Get JSON value from cache
+ * @param key Cache key
+ * @returns Parsed JSON object or null if not found/invalid
+ */
+export async function cacheGetJson<T = any>(key: string): Promise<T | null> {
+  const result = await cacheGet(key);
+  if (!result) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(result) as T;
+  } catch (error) {
+    console.error(`Failed to parse cached JSON for key ${key}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Set JSON value in cache
+ * @param key Cache key
+ * @param value Object to cache (will be JSON stringified)
+ * @param ttlSeconds Time to live in seconds (optional)
+ */
+export async function cacheSetJson(key: string, value: any, ttlSeconds?: number): Promise<void> {
+  return cacheSet(key, value, ttlSeconds); // cacheSet already handles JSON.stringify
+}
+
+/**
+ * Delete a single key from cache
+ * @param key Cache key to delete
+ */
+export async function cacheDel(key: string): Promise<void> {
+  await cacheBackend.del(key);
+  console.log(`Cache deleted: ${key}`);
+}
+
+/**
+ * Delete all keys matching a prefix
+ * @param prefix Key prefix to match (e.g., "trust:v1:")
+ * @returns Number of keys deleted
+ */
+export async function cacheDelByPrefix(prefix: string): Promise<number> {
+  const count = await cacheBackend.delByPrefix(prefix);
+  console.log(`Cache prefix deletion: ${prefix}* (${count} keys deleted)`);
+  return count;
+}
+
+/**
  * Generate cache key with SHA256 hash
  * Format: prefix:version:hash
  */
 export function generateCacheKey(prefix: string, version: string, input: string): string {
   const hash = crypto.createHash('sha256').update(input).digest('hex');
   return `${prefix}:${version}:${hash}`;
+}
+
+/**
+ * Invalidate trust score cache for a product or company
+ * @param productId Product ID to invalidate (optional)
+ * @param companyId Company ID to invalidate (optional)
+ * @param productSku Product SKU to invalidate (optional, alternative to productId)
+ */
+export async function invalidateTrustCache(options: {
+  productId?: string;
+  companyId?: string;
+  productSku?: string;
+}): Promise<void> {
+  const { productId, companyId, productSku } = options;
+
+  try {
+    // If we have productId, look up the SKU
+    if (productId) {
+      const product = await prisma.product.findUnique({
+        where: { id: productId },
+        select: { sku: true }
+      });
+
+      if (product) {
+        await cacheDel(`trust:v1:product:${product.sku}`);
+      }
+    }
+
+    // If we have productSku directly, invalidate it
+    if (productSku) {
+      await cacheDel(`trust:v1:product:${productSku}`);
+    }
+
+    // Invalidate company cache
+    if (companyId) {
+      await cacheDel(`trust:v1:company:${companyId}`);
+    }
+
+    // If no specific IDs provided, do a full invalidation (safe but expensive)
+    if (!productId && !companyId && !productSku) {
+      console.log('No specific IDs provided, invalidating all trust caches');
+      await cacheDelByPrefix('trust:v1:');
+    }
+  } catch (error) {
+    console.error('Cache invalidation failed:', error);
+  }
 }
 
 /**
