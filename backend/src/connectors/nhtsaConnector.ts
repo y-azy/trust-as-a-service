@@ -2,6 +2,7 @@ import axios from 'axios';
 import { PrismaClient, Event } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
+import { invalidateTrustCache } from '../services/cache';
 
 declare const require: NodeRequire;
 declare const module: NodeModule;
@@ -174,6 +175,12 @@ export class NHTSAConnector {
 
         events.push(event);
         console.log(`Created recall event: ${recall.NHTSACampaignNumber}`);
+
+        // Invalidate cache for affected product/company
+        await invalidateTrustCache({
+          productId: event.productId || undefined,
+          companyId: event.companyId || undefined
+        });
       } catch (error) {
         console.error(`Error processing recall ${recall.NHTSACampaignNumber}:`, error);
       }

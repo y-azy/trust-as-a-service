@@ -6,6 +6,7 @@ import {
   extractPolicyScore,
   getPlatformLinks
 } from '../utils/eventHelpers';
+import { cacheGetJson, cacheSetJson } from '../services/cache';
 
 const prisma = new PrismaClient();
 
@@ -13,6 +14,14 @@ export const trustController = {
   async getProductTrust(req: Request, res: Response, next: NextFunction) {
     try {
       const { sku } = req.params;
+
+      // Check cache first
+      const cacheKey = `trust:v1:product:${sku}`;
+      const cached = await cacheGetJson<any>(cacheKey);
+
+      if (cached) {
+        return res.json({ ...cached, cached: true });
+      }
 
       // Find product
       const product = await prisma.product.findUnique({
@@ -106,8 +115,13 @@ export const trustController = {
         breakdown: breakdownParsed,
         evidence: evidence.slice(0, 3), // Top 3 evidence items
         platformLinks,
-        lastUpdated: latestScore.createdAt
+        lastUpdated: latestScore.createdAt,
+        computedAt: new Date().toISOString(),
+        cached: false
       };
+
+      // Cache the response for 1 hour (3600 seconds)
+      await cacheSetJson(cacheKey, response, 3600);
 
       return res.json(response);
     } catch (error) {
@@ -118,6 +132,14 @@ export const trustController = {
   async getCompanyTrust(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
+
+      // Check cache first
+      const cacheKey = `trust:v1:company:${id}`;
+      const cached = await cacheGetJson<any>(cacheKey);
+
+      if (cached) {
+        return res.json({ ...cached, cached: true });
+      }
 
       // Find company
       const company = await prisma.company.findUnique({
@@ -190,8 +212,13 @@ export const trustController = {
         confidence: latestScore.confidence,
         breakdown: breakdownParsed,
         products: products.slice(0, 10), // Top 10 products
-        lastUpdated: latestScore.createdAt
+        lastUpdated: latestScore.createdAt,
+        computedAt: new Date().toISOString(),
+        cached: false
       };
+
+      // Cache the response for 1 hour (3600 seconds)
+      await cacheSetJson(cacheKey, response, 3600);
 
       return res.json(response);
     } catch (error) {
