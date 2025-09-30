@@ -37,6 +37,12 @@ jest.mock('../../src/utils/eventHelpers', () => ({
   ])
 }));
 
+// Mock cache
+jest.mock('../../src/services/cache', () => ({
+  cacheGetJson: jest.fn().mockResolvedValue(null),
+  cacheSetJson: jest.fn().mockResolvedValue(undefined)
+}));
+
 // Mock scoreRecomputeJob
 jest.mock('../../src/jobs/scoreRecompute', () => ({
   scoreRecomputeJob: {

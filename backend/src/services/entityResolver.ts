@@ -241,7 +241,7 @@ export async function resolveEntity(query: string): Promise<ResolveResult> {
 
   // Determine if resolved (high-confidence match)
   const topCandidate = candidates[0];
-  const resolved = topCandidate && topCandidate.score >= 0.6;
+  const resolved = topCandidate ? topCandidate.score >= 0.6 : false;
 
   const result: ResolveResult = {
     resolved,

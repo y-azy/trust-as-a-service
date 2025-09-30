@@ -13,14 +13,25 @@ delete process.env.REDIS_URL;
 
 // Mock OpenAI to prevent API calls during tests
 jest.mock('openai', () => {
-  return {
-    OpenAI: jest.fn().mockImplementation(() => ({
-      embeddings: {
+  const mockOpenAI = jest.fn().mockImplementation(() => ({
+    embeddings: {
+      create: jest.fn().mockResolvedValue({
+        data: [{ embedding: new Array(1536).fill(0.1) }]
+      })
+    },
+    chat: {
+      completions: {
         create: jest.fn().mockResolvedValue({
-          data: [{ embedding: new Array(1536).fill(0.1) }]
+          choices: [{ message: { content: 'test' } }]
         })
       }
-    }))
+    }
+  }));
+
+  return {
+    __esModule: true,
+    default: mockOpenAI,
+    OpenAI: mockOpenAI
   };
 });
 
