@@ -10,6 +10,7 @@ import { recommendationController } from './controllers/recommendationController
 import { healthController } from './controllers/healthController';
 import { disputeController } from './controllers/disputeController';
 import { internalController, resolveValidation } from './controllers/internalController';
+import { searchController } from './controllers/searchController';
 
 // Import middleware
 import { apiKeyMiddleware } from './middleware/auth';
@@ -55,6 +56,9 @@ app.get('/api/trust/company/:id', trustController.getCompanyTrust);
 // Products endpoints
 app.get('/api/products/featured', trustController.getFeaturedProducts);
 app.get('/api/products/search', trustController.searchProducts);
+
+// Search endpoint (resolver-based)
+app.get('/api/search', searchController.search);
 
 // Dashboard endpoints
 app.get('/api/dashboard/stats', trustController.getDashboardStats);

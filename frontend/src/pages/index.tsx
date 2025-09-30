@@ -5,6 +5,8 @@ import axios from 'axios'
 import ProductCard from '@/components/ProductCard'
 import SearchFilter from '@/components/SearchFilter'
 import ScoreVisualization from '@/components/ScoreVisualization'
+import SearchResults from '@/components/SearchResults'
+import { useSearch } from '@/hooks/useSearch'
 
 interface Product {
   sku: string
@@ -25,6 +27,10 @@ export default function Home() {
   const [searchResults, setSearchResults] = useState<Product[]>([])
   const [loading, setLoading] = useState(false)
   const [showSearchResults, setShowSearchResults] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // Use resolver-based search hook
+  const { results: resolverResults, loading: resolverLoading, error: resolverError, search: searchWithResolver } = useSearch()
 
   useEffect(() => {
     fetchFeaturedProducts()
@@ -83,9 +89,17 @@ export default function Home() {
   }
 
   const handleSearch = async (query: string, filters: any) => {
-    setLoading(true)
+    setSearchQuery(query)
     setShowSearchResults(true)
 
+    // Use resolver-based search for simple queries
+    if (query && !filters.minScore && !filters.categories?.length && !filters.brands?.length) {
+      searchWithResolver(query)
+      return
+    }
+
+    // Fallback to old search for filtered queries
+    setLoading(true)
     try {
       const params = new URLSearchParams()
       if (query) params.append('q', query)
@@ -195,45 +209,74 @@ export default function Home() {
 
         {/* Search Results or Featured Products - Responsive Grid */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
-          {showSearchResults ? (
-            <>
-              <div className="flex justify-between items-center mb-6">
+          {/* Resolver-based search results */}
+          {showSearchResults && resolverResults && (
+            <div className="mb-8">
+              <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl md:text-2xl font-bold text-gray-900">
-                  {loading ? 'Searching...' : `Search Results (${searchResults.length})`}
+                  Search Results for "{searchQuery}"
                 </h3>
                 <button
-                  onClick={() => setShowSearchResults(false)}
-                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                  onClick={() => {
+                    setShowSearchResults(false)
+                    setSearchQuery('')
+                  }}
+                  className="text-sm text-blue-600 hover:text-blue-700"
                 >
-                  ← Back to Featured
+                  Clear Search
                 </button>
               </div>
+              {resolverError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                  <p className="text-red-700">{resolverError}</p>
+                </div>
+              )}
+              <SearchResults results={resolverResults} loading={resolverLoading} />
+            </div>
+          )}
 
-              {loading ? (
-                <div className="flex justify-center py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          {/* Old search results fallback (only when not using resolver) */}
+          {!resolverResults && (
+            showSearchResults && searchResults.length > 0 ? (
+              <>
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-xl md:text-2xl font-bold text-gray-900">
+                    {loading ? 'Searching...' : `Search Results (${searchResults.length})`}
+                  </h3>
+                  <button
+                    onClick={() => setShowSearchResults(false)}
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    ← Back to Featured
+                  </button>
                 </div>
-              ) : searchResults.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-gray-500">No products found matching your criteria</p>
-                </div>
-              ) : (
+
+                {loading ? (
+                  <div className="flex justify-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                  </div>
+                ) : searchResults.length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-gray-500">No products found matching your criteria</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                    {searchResults.map((product) => (
+                      <ProductCard key={product.sku} {...product} />
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-6">Featured Products</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-                  {searchResults.map((product) => (
+                  {featuredProducts.map((product) => (
                     <ProductCard key={product.sku} {...product} />
                   ))}
                 </div>
-              )}
-            </>
-          ) : (
-            <>
-              <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-6">Featured Products</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-                {featuredProducts.map((product) => (
-                  <ProductCard key={product.sku} {...product} />
-                ))}
-              </div>
-            </>
+              </>
+            )
           )}
         </div>
 
