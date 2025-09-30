@@ -13,11 +13,11 @@ async function main() {
       id: 'amazon-com',
       name: 'Amazon',
       domain: 'amazon.com',
-      metaJson: {
+      metaJson: JSON.stringify({
         type: 'marketplace',
         trustScore: 85,
         features: ['buyer_protection', 'verified_reviews', 'a_to_z_guarantee']
-      }
+      })
     }
   });
 
@@ -28,11 +28,11 @@ async function main() {
       id: 'bestbuy-com',
       name: 'Best Buy',
       domain: 'bestbuy.com',
-      metaJson: {
+      metaJson: JSON.stringify({
         type: 'marketplace',
         trustScore: 82,
         features: ['price_match', 'geek_squad', 'in_store_returns']
-      }
+      })
     }
   });
 
@@ -74,12 +74,12 @@ async function main() {
       source: 'CPSC',
       type: 'recall',
       severity: 3.0,
-      detailsJson: {
+      detailsJson: JSON.stringify({
         title: 'Fire Hazard',
         description: 'Battery may overheat',
         date: '2024-01-15',
         units_affected: 10000
-      },
+      }),
       rawUrl: 'https://www.cpsc.gov/Recalls/2024/sample-recall',
       parsedAt: new Date()
     }
@@ -92,11 +92,11 @@ async function main() {
       source: 'CFPB',
       type: 'complaint',
       severity: 2.0,
-      detailsJson: {
+      detailsJson: JSON.stringify({
         issue: 'Product quality',
         status: 'resolved',
         resolution_time_days: 7
-      },
+      }),
       rawUrl: 'https://www.consumerfinance.gov/data-research/consumer-complaints/',
       parsedAt: new Date()
     }

@@ -211,19 +211,21 @@ export class SearchPipelineService {
   private async runCPSCConnector(product: any): Promise<ConnectorResult> {
     try {
       const connector = new CPSCConnector();
-      const allowed = await connector['checkRobotsTxt']();
+      // Robots.txt check removed - CPSC public API doesn't require it
 
-      if (!allowed) {
+      // Proceed directly with fetching recalls
+      const recalls = await connector.fetchRecalls(product.name || product.sku, 5);
+
+      if (!recalls || recalls.length === 0) {
         return {
           connector: 'CPSC',
           success: true,
           eventsCreated: 0,
-          blocked: true,
-          reason: 'Blocked by robots.txt'
+          blocked: false,
+          reason: 'No recalls found'
         };
       }
 
-      const recalls = await connector.fetchRecalls(product.name);
       const events = await connector.processRecalls(recalls, product.id);
       return {
         connector: 'CPSC',
@@ -337,8 +339,9 @@ export class SearchPipelineService {
    * Find or create company
    */
   private async findOrCreateCompany(name: string) {
+    // For SQLite, use contains for case-insensitive search
     let company = await prisma.company.findFirst({
-      where: { name: { equals: name, mode: 'insensitive' } }
+      where: { name: { contains: name } }
     });
 
     if (!company) {

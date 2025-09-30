@@ -343,7 +343,7 @@ export class PolicyParser {
 
     try {
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
+        model: 'gpt-3.5-turbo',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
@@ -489,8 +489,8 @@ export class PolicyParser {
     let finalEvidence: PolicyField[] = regexEvidence;
     let confidence = regexFieldCount > 5 ? 0.9 : regexFieldCount > 3 ? 0.7 : 0.4;
 
-    // Step 5: Use LLM if confidence is low or critical fields are missing
-    if (confidence < 0.7 || !regexFields.warranty_length_months) {
+    // Step 5: Always try to use LLM for better accuracy if available
+    if (this.openai) {
       try {
         const llmResult = await this.extractWithLLM(text);
 

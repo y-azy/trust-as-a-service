@@ -133,10 +133,7 @@ export class NHTSAConnector {
           where: {
             source: 'NHTSA',
             type: 'recall',
-            detailsJson: {
-              path: ['campaign_number'],
-              equals: recall.NHTSACampaignNumber
-            }
+            rawUrl: `https://www.nhtsa.gov/recalls?nhtsaId=${recall.NHTSACampaignNumber}`
           }
         });
 
@@ -156,7 +153,7 @@ export class NHTSAConnector {
             source: 'NHTSA',
             type: 'recall',
             severity: this.calculateSeverity(recall),
-            detailsJson: {
+            detailsJson: JSON.stringify({
               campaign_number: recall.NHTSACampaignNumber,
               manufacturer: recall.Manufacturer,
               make: recall.Make,
@@ -168,7 +165,7 @@ export class NHTSAConnector {
               remedy: recall.Remedy?.substring(0, 500),
               units_affected: recall.PotentialUnitsAffected,
               recall_date: recall.RecallDate
-            },
+            }),
             rawUrl: `https://www.nhtsa.gov/recalls?nhtsaId=${recall.NHTSACampaignNumber}`,
             rawRef,
             parsedAt: new Date()

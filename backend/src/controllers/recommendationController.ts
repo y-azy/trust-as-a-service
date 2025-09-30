@@ -150,7 +150,9 @@ export const recommendationController = {
   extractWarrantyMonths(policyEvent: any): number {
     if (!policyEvent || !policyEvent.detailsJson) return 12;
 
-    const details = policyEvent.detailsJson as any;
+    const details = typeof policyEvent.detailsJson === 'string'
+      ? JSON.parse(policyEvent.detailsJson)
+      : policyEvent.detailsJson;
     return details?.parsed?.warranty_length_months || 12;
   },
 

@@ -28,7 +28,7 @@ services:
     ports:
       - "4000:4000"
     environment:
-      DATABASE_URL: postgresql://trustuser:trustpass@postgres:5432/trustdb?schema=public
+      DATABASE_URL: file:/app/db/trust.db
       REDIS_URL: redis://redis:6379
       NODE_ENV: production
       PORT: 4000
@@ -39,12 +39,12 @@ services:
       TRUSTPILOT_API_KEY: ${TRUSTPILOT_API_KEY:-}
       GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY:-}
     depends_on:
-      - postgres
       - redis
     networks:
       - trust-network
     volumes:
       - ./backend/storage:/app/storage
+      - ./backend/db:/app/db
 
   frontend:
     build:

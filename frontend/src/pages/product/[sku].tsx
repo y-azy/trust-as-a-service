@@ -6,6 +6,8 @@ import ScoreBadge from '@/components/ScoreBadge'
 import EvidenceList from '@/components/EvidenceList'
 import CompareRibbon from '@/components/CompareRibbon'
 import PlatformLinksTable from '@/components/PlatformLinksTable'
+import ScoreVisualization from '@/components/ScoreVisualization'
+import PolicySummary from '@/components/PolicySummary'
 
 interface ProductTrust {
   sku: string
@@ -126,10 +128,12 @@ export default function ProductPage() {
                 </p>
               </div>
               <div className="flex justify-end">
-                <ScoreBadge
+                <ScoreVisualization
                   score={product.score}
                   grade={product.grade}
-                  confidence={product.confidence}
+                  breakdown={product.breakdown}
+                  type="radial"
+                  size="large"
                 />
               </div>
             </div>
