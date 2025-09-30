@@ -4,6 +4,7 @@ module.exports = {
   roots: ['<rootDir>/src', '<rootDir>/tests'],
   testMatch: ['**/__tests__/**/*.ts', '**/?(*.)+(spec|test).ts'],
   testTimeout: 120000,
+  setupFilesAfterEnv: ['<rootDir>/tests/jest.setup.ts'],
   transform: {
     '^.+\\.ts$': 'ts-jest',
   },
