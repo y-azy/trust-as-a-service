@@ -1,6 +1,15 @@
 import { policyParser } from './policyParser';
 
 describe('PolicyParser', () => {
+  // Mock checkRobotsTxt to avoid real HTTP calls in tests
+  beforeAll(() => {
+    jest.spyOn(policyParser, 'checkRobotsTxt').mockResolvedValue({ allowed: true });
+  });
+
+  afterAll(() => {
+    jest.restoreAllMocks();
+  });
+
   const sampleHtml = `<html>
     <body>
       <h1>Warranty Information</h1>
