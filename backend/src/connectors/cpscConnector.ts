@@ -49,7 +49,7 @@ export class CPSCConnector {
     }
   }
 
-  async fetchRecallsByUPC(upc: string, description: string = '', limit: number = 10): Promise<any[]> {
+  async fetchRecallsByUPC(_upc: string, description: string = '', limit: number = 10): Promise<any[]> {
     try {
       // Build SOAP request for the CPSC UPC Web Service
       const soapBody = `<?xml version="1.0" encoding="utf-8"?>
@@ -113,7 +113,8 @@ export class CPSCConnector {
     }
   }
 
-  private createStub(): void {
+  // @ts-ignore - Method reserved for future use
+  private _createStub(): void {
     const stubFile = path.join(__dirname, 'cpscConnector.stub.md');
     const stubContent = `# CPSC Connector - Disabled
 

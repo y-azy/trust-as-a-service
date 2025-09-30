@@ -9,7 +9,7 @@ import { trustController } from './controllers/trustController';
 import { recommendationController } from './controllers/recommendationController';
 import { healthController } from './controllers/healthController';
 import { disputeController } from './controllers/disputeController';
-import { internalController } from './controllers/internalController';
+import { internalController, resolveValidation } from './controllers/internalController';
 
 // Import middleware
 import { apiKeyMiddleware } from './middleware/auth';
@@ -52,6 +52,13 @@ app.use('/api', apiKeyMiddleware);
 app.get('/api/trust/product/:sku', trustController.getProductTrust);
 app.get('/api/trust/company/:id', trustController.getCompanyTrust);
 
+// Products endpoints
+app.get('/api/products/featured', trustController.getFeaturedProducts);
+app.get('/api/products/search', trustController.searchProducts);
+
+// Dashboard endpoints
+app.get('/api/dashboard/stats', trustController.getDashboardStats);
+
 // Recommendation endpoint
 app.get('/api/recommendations/:sku', recommendationController.getRecommendations);
 
@@ -60,6 +67,7 @@ app.post('/api/dispute', disputeController.submitDispute);
 
 // Internal endpoints (require auth)
 app.post('/internal/search/run', internalController.runSearchPipeline);
+app.post('/api/internal/resolve', resolveValidation, internalController.resolveEntity);
 
 // Error handling
 app.use(errorHandler);
