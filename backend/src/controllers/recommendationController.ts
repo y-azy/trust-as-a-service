@@ -54,24 +54,24 @@ export const recommendationController = {
         .map(product => {
           const score = product.scores[0];
           const policyEvent = product.events[0];
-          const warrantyMonths = this.extractWarrantyMonths(policyEvent);
+          const warrantyMonths = recommendationController.extractWarrantyMonths(policyEvent);
 
           // Mock pricing (in production, fetch from marketplace APIs)
           const price = Math.random() * 500 + 100;
-          const effectivePrice = this.calculateEffectivePrice(
+          const effectivePrice = recommendationController.calculateEffectivePrice(
             price,
             score.score,
             warrantyMonths
           );
 
-          const utility = this.calculateUtility(
+          const utility = recommendationController.calculateUtility(
             score.score,
             effectivePrice,
             warrantyMonths,
             mode as string
           );
 
-          const reasons = this.generateReasons(
+          const reasons = recommendationController.generateReasons(
             product,
             score.score,
             effectivePrice,
@@ -82,7 +82,7 @@ export const recommendationController = {
             sku: product.sku,
             name: product.name,
             score: score.score,
-            grade: this.getGrade(score.score),
+            grade: recommendationController.getGrade(score.score),
             price,
             effectivePrice,
             warrantyMonths,

@@ -104,7 +104,7 @@ export default function Home() {
           }
         }
       )
-      setSearchResults(response.data)
+      setSearchResults(response.data.results || [])
     } catch (error) {
       console.error('Search failed:', error)
       // For demo, filter featured products
