@@ -61,6 +61,45 @@ docker-compose up backend      # Start backend with dependencies
 
 ## Architecture & Core Concepts
 
+### High-Level Architecture & Data Flow
+
+```
+User (text search)  ---> Frontend (Search UI / Browser Ext)  ---> API Gateway / Search API
+      |                                                             |
+      |                                                             v
+      |                                                    Entity Resolution Service
+      |                                                             |
+      v                                                             v
+Frontend displays results <--- Product/Company canonical object store <--- Ingest pipeline
+                                                             |
+                                                      Connector Manager (schedulers)
+                                                     /   |    |   |    \
+                                               CPSC  NHTSA CFPB  News  Retail APIs
+                                                     \   |    |   |    /
+                                                      Raw Events & Documents
+                                                             |
+                                                   Normalizer & Evidence Store
+                                                      (parse, dedupe, canonicalize)
+                                                             |
+                                                   AI Orchestrator (LLM + Embeddings)
+                                                (policy parser, summarizer, embeddings)
+                                                             |
+                                                    Scoring Engine & Audit Log
+                                                             |
+                  ---------------------------------------------------------------
+                  |                                |                              |
+             API: Trust Profile              Recommendations API           B2B Dashboards / Exports
+             (product/company/service)         (trustFirst, costAdj)       (bulk, underwriting, SLA)
+```
+
+**Key Components:**
+- **Entity Resolution Service**: Matches user queries to canonical products/companies using fuzzy matching and semantic search
+- **Connector Manager**: Orchestrates scheduled data ingestion from CPSC, NHTSA, CFPB, news, and retail APIs
+- **Normalizer & Evidence Store**: Parses, deduplicates, and canonicalizes raw events into structured evidence
+- **AI Orchestrator**: Leverages LLM for policy parsing, summarization, and embeddings generation
+- **Scoring Engine**: Deterministic trust scoring with configurable weights and audit trails
+- **API Layer**: Exposes trust profiles, recommendations, and B2B analytics endpoints
+
 ### Trust Scoring Engine
 
 The scoring engine (`backend/src/services/trustScore.ts`) is the core IP. It uses a weighted formula where:
