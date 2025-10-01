@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosInstance, AxiosError } from 'axios';
 import { PrismaClient, Event } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -8,6 +8,23 @@ declare const require: NodeRequire;
 declare const module: NodeModule;
 
 const prisma = new PrismaClient();
+
+// ConnectorEvent shape - standardized across all connectors
+export interface ConnectorEvent {
+  id?: string;
+  source: string;
+  type: string;
+  severity: number; // 0-1 normalized
+  title: string;
+  description?: string;
+  detailsJson: any;
+  rawUrl?: string;
+  rawRef?: string;
+  parsedAt: Date;
+  productId?: string;
+  companyId?: string;
+  robots_disallowed?: boolean;
+}
 
 interface NHTSARecall {
   Manufacturer: string;
@@ -21,24 +38,107 @@ interface NHTSARecall {
   NHTSACampaignNumber: string;
   PotentialUnitsAffected: string;
   RecallDate: string;
+  ReportReceivedDate?: string;
 }
 
-interface ConnectorResult {
-  success: boolean;
-  eventsCreated: number;
-  errors: string[];
-  lastFetch?: Date;
+interface NHTSASearchOptions {
+  limit?: number;
+  page?: number;
+}
+
+interface RateLimitState {
+  requestsInWindow: number;
+  windowStart: number;
 }
 
 export class NHTSAConnector {
   private baseUrl = 'https://api.nhtsa.gov';
   private storageDir = path.join(__dirname, '../../storage/raw/nhtsa');
+  private axios: AxiosInstance;
+  private rateLimitPerMinute = 60;
+  private rateLimitState: RateLimitState = {
+    requestsInWindow: 0,
+    windowStart: Date.now()
+  };
 
   constructor() {
     // Ensure storage directory exists
     if (!fs.existsSync(this.storageDir)) {
       fs.mkdirSync(this.storageDir, { recursive: true });
     }
+
+    // Create axios instance with defaults
+    this.axios = axios.create({
+      baseURL: this.baseUrl,
+      timeout: 10000,
+      headers: {
+        'User-Agent': 'TrustAsAService/1.0',
+        'Accept': 'application/json'
+      }
+    });
+  }
+
+  private async enforceRateLimit(): Promise<void> {
+    const now = Date.now();
+    const windowElapsed = now - this.rateLimitState.windowStart;
+
+    // Reset window if more than 1 minute has passed
+    if (windowElapsed >= 60000) {
+      this.rateLimitState = {
+        requestsInWindow: 0,
+        windowStart: now
+      };
+    }
+
+    // If we've hit the rate limit, wait until the window resets
+    if (this.rateLimitState.requestsInWindow >= this.rateLimitPerMinute) {
+      const waitTime = 60000 - windowElapsed;
+      console.log(`Rate limit reached. Waiting ${waitTime}ms`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      this.rateLimitState = {
+        requestsInWindow: 0,
+        windowStart: Date.now()
+      };
+    }
+
+    this.rateLimitState.requestsInWindow++;
+  }
+
+  private async retryWithBackoff<T>(
+    fn: () => Promise<T>,
+    maxRetries: number = 3,
+    baseDelay: number = 1000
+  ): Promise<T> {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        await this.enforceRateLimit();
+        return await fn();
+      } catch (error) {
+        const axiosError = error as AxiosError;
+        const status = axiosError.response?.status;
+
+        // 400 errors from NHTSA API usually mean no results or invalid parameters
+        // Return empty response rather than throwing
+        if (status === 400) {
+          return { data: { results: [] } } as T;
+        }
+
+        // Check if it's a rate limit or server error
+        const isRetryable = status === 429 || (status && status >= 500);
+
+        if (!isRetryable || attempt === maxRetries) {
+          throw error;
+        }
+
+        // Calculate delay with exponential backoff and jitter
+        const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 1000;
+        console.log(`Request failed with status ${status}. Retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+
+    throw new Error('Max retries exceeded');
   }
 
   private async storeRawData(data: any, identifier: string): Promise<string> {
@@ -50,45 +150,238 @@ export class NHTSAConnector {
     return `local://storage/raw/nhtsa/${fileName}`;
   }
 
-  private calculateSeverity(recall: NHTSARecall): number {
+  private normalizeSeverity(recall: NHTSARecall): number {
     const consequence = recall.Consequence?.toLowerCase() || '';
     const component = recall.Component?.toLowerCase() || '';
 
-    // Higher severity for safety-critical components
+    // Normalize to 0-1 scale
     if (consequence.includes('death') || consequence.includes('injury')) {
-      return 5.0;
+      return 1.0;
     } else if (consequence.includes('crash') || consequence.includes('accident')) {
-      return 4.5;
+      return 0.9;
     } else if (consequence.includes('fire') || consequence.includes('burn')) {
-      return 4.0;
-    } else if (component.includes('brake') || component.includes('steering')) {
-      return 3.5;
-    } else if (component.includes('airbag') || component.includes('seatbelt')) {
-      return 3.5;
+      return 0.8;
+    } else if (consequence.includes('brake') || component.includes('brake') ||
+               consequence.includes('steering') || component.includes('steering')) {
+      return 0.7;
+    } else if (consequence.includes('airbag') || component.includes('airbag') ||
+               consequence.includes('seatbelt') || component.includes('seatbelt')) {
+      return 0.7;
     } else if (consequence.includes('fail')) {
-      return 3.0;
+      return 0.6;
     } else if (component.includes('electrical') || component.includes('engine')) {
-      return 2.5;
+      return 0.5;
     }
 
-    return 2.0; // Default severity
+    return 0.4; // Default severity
   }
 
-  async fetchVehicleRecalls(make: string, model: string, year: string): Promise<NHTSARecall[]> {
-    try {
-      const url = `${this.baseUrl}/recalls/recallsByVehicle?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&modelYear=${year}`;
+  private normalizeRecallToEvent(recall: NHTSARecall, rawRef?: string): ConnectorEvent {
+    return {
+      source: 'NHTSA',
+      type: 'recall',
+      severity: this.normalizeSeverity(recall),
+      title: `${recall.Make} ${recall.Model} ${recall.ModelYear} - ${recall.Component}`,
+      description: recall.Summary?.substring(0, 500),
+      detailsJson: {
+        campaign_number: recall.NHTSACampaignNumber,
+        manufacturer: recall.Manufacturer,
+        make: recall.Make,
+        model: recall.Model,
+        model_year: recall.ModelYear,
+        component: recall.Component,
+        summary: recall.Summary,
+        consequence: recall.Consequence,
+        remedy: recall.Remedy,
+        units_affected: recall.PotentialUnitsAffected,
+        recall_date: recall.RecallDate
+      },
+      rawUrl: `https://www.nhtsa.gov/recalls?nhtsaId=${recall.NHTSACampaignNumber}`,
+      rawRef,
+      parsedAt: new Date()
+    };
+  }
 
-      console.log(`Fetching NHTSA recalls: ${url}`);
+  private parseVehicleInfo(query: string): { make?: string; model?: string; year?: string } {
+    const result: { make?: string; model?: string; year?: string } = {};
 
-      const response = await axios.get(url, {
-        timeout: 10000,
-        headers: {
-          'User-Agent': 'TrustAsAService/1.0',
-          'Accept': 'application/json'
+    // Extract year (4 digits)
+    const yearMatch = query.match(/\b(19|20)\d{2}\b/);
+    if (yearMatch) {
+      result.year = yearMatch[0];
+    }
+
+    // Common makes
+    const makes = ['honda', 'toyota', 'ford', 'chevrolet', 'chevy', 'gmc', 'dodge',
+                   'jeep', 'nissan', 'mazda', 'volkswagen', 'vw', 'bmw', 'mercedes',
+                   'audi', 'lexus', 'acura', 'infiniti', 'subaru', 'kia', 'hyundai',
+                   'tesla', 'volvo', 'porsche', 'ram', 'buick', 'cadillac', 'chrysler',
+                   'ferrari', 'lamborghini', 'mclaren', 'bentley', 'rolls-royce', 'maserati'];
+
+    const queryLower = query.toLowerCase();
+    for (const make of makes) {
+      if (queryLower.includes(make)) {
+        // Map common abbreviations
+        result.make = make === 'chevy' ? 'chevrolet' : make === 'vw' ? 'volkswagen' : make;
+
+        // Try to extract model - words after make but before year
+        const makeIndex = queryLower.indexOf(make);
+        const remainingText = query.substring(makeIndex + make.length).trim();
+
+        // Remove year if present at the end
+        const modelText = result.year
+          ? remainingText.replace(new RegExp(`\\s*${result.year}\\s*$`), '')
+          : remainingText;
+
+        if (modelText) {
+          // Take first 2-3 words as model, lowercase for consistency
+          const modelWords = modelText.split(/\s+/).filter(w => w.length > 0);
+          result.model = modelWords.slice(0, 3).join(' ').toLowerCase();
         }
+        break;
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Search for recalls by text query
+   * Attempts to identify vehicle make/model/year from the query
+   */
+  async searchByText(query: string, opts?: NHTSASearchOptions): Promise<ConnectorEvent[]> {
+    const limit = opts?.limit || 25;
+    const events: ConnectorEvent[] = [];
+
+    console.log(JSON.stringify({
+      provider: 'nhtsa',
+      query,
+      method: 'searchByText',
+      timestamp: new Date().toISOString()
+    }));
+
+    try {
+      // Parse vehicle info from query
+      const vehicleInfo = this.parseVehicleInfo(query);
+
+      // NHTSA API requires at least a make parameter
+      if (!vehicleInfo.make) {
+        console.log('Could not parse make from query - API requires at least a make');
+        return [];
+      }
+
+      // Build API URL based on available info
+      let endpoint = '/recalls/recallsByVehicle?';
+      const params = new URLSearchParams();
+
+      params.append('make', vehicleInfo.make);
+      if (vehicleInfo.model) params.append('model', vehicleInfo.model);
+      if (vehicleInfo.year) params.append('modelYear', vehicleInfo.year);
+
+      const response = await this.retryWithBackoff(async () => {
+        return await this.axios.get(endpoint + params.toString());
       });
 
-      if (response.data && response.data.results) {
+      if (response.data?.results) {
+        const recalls = response.data.results.slice(0, limit);
+
+        for (const recall of recalls) {
+          const rawRef = await this.storeRawData(recall, recall.NHTSACampaignNumber);
+          events.push(this.normalizeRecallToEvent(recall, rawRef));
+        }
+      }
+
+      console.log(JSON.stringify({
+        provider: 'nhtsa',
+        query,
+        attempts: 1,
+        itemsReturned: events.length
+      }));
+
+      return events;
+    } catch (error) {
+      console.error('Error in searchByText:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch events for a specific entity (product or company)
+   */
+  async fetchEventsForEntity(
+    entity: { type: string; name?: string; id?: string },
+    opts?: NHTSASearchOptions
+  ): Promise<ConnectorEvent[]> {
+    const limit = opts?.limit || 25;
+    const events: ConnectorEvent[] = [];
+
+    console.log(JSON.stringify({
+      provider: 'nhtsa',
+      entity,
+      method: 'fetchEventsForEntity',
+      timestamp: new Date().toISOString()
+    }));
+
+    try {
+      if (entity.type === 'product' && entity.name) {
+        // Use the product name to search
+        return await this.searchByText(entity.name, opts);
+      }
+
+      if (entity.type === 'company' && entity.name) {
+        // Search by manufacturer
+        const endpoint = `/recalls/recallsByManufacturer?manufacturer=${encodeURIComponent(entity.name)}`;
+
+        const response = await this.retryWithBackoff(async () => {
+          return await this.axios.get(endpoint);
+        });
+
+        if (response.data?.results) {
+          const recalls = response.data.results.slice(0, limit);
+
+          for (const recall of recalls) {
+            const rawRef = await this.storeRawData(recall, recall.NHTSACampaignNumber);
+            events.push(this.normalizeRecallToEvent(recall, rawRef));
+          }
+        }
+      }
+
+      console.log(JSON.stringify({
+        provider: 'nhtsa',
+        entity,
+        attempts: 1,
+        itemsReturned: events.length
+      }));
+
+      return events;
+    } catch (error) {
+      console.error('Error in fetchEventsForEntity:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Optional helper for registering with a connector runner
+   */
+  registerToConnectorRunner(runner: any): void {
+    if (runner && typeof runner.register === 'function') {
+      runner.register('nhtsa', {
+        searchByText: this.searchByText.bind(this),
+        fetchEventsForEntity: this.fetchEventsForEntity.bind(this)
+      });
+    }
+  }
+
+  // Legacy methods for backward compatibility
+  async fetchVehicleRecalls(make: string, model: string, year: string): Promise<NHTSARecall[]> {
+    try {
+      const endpoint = `/recalls/recallsByVehicle?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&modelYear=${year}`;
+
+      const response = await this.retryWithBackoff(async () => {
+        return await this.axios.get(endpoint);
+      });
+
+      if (response.data?.results) {
         return response.data.results;
       }
 
@@ -101,19 +394,13 @@ export class NHTSAConnector {
 
   async fetchByVIN(vin: string): Promise<NHTSARecall[]> {
     try {
-      const url = `${this.baseUrl}/recalls/recallsByVin?vin=${vin}`;
+      const endpoint = `/recalls/recallsByVin?vin=${vin}`;
 
-      console.log(`Fetching NHTSA recalls by VIN: ${url}`);
-
-      const response = await axios.get(url, {
-        timeout: 10000,
-        headers: {
-          'User-Agent': 'TrustAsAService/1.0',
-          'Accept': 'application/json'
-        }
+      const response = await this.retryWithBackoff(async () => {
+        return await this.axios.get(endpoint);
       });
 
-      if (response.data && response.data.results) {
+      if (response.data?.results) {
         return response.data.results;
       }
 
@@ -153,7 +440,7 @@ export class NHTSAConnector {
             companyId,
             source: 'NHTSA',
             type: 'recall',
-            severity: this.calculateSeverity(recall),
+            severity: this.normalizeSeverity(recall) * 5, // Convert to 0-5 scale for DB
             detailsJson: JSON.stringify({
               campaign_number: recall.NHTSACampaignNumber,
               manufacturer: recall.Manufacturer,
@@ -188,178 +475,57 @@ export class NHTSAConnector {
 
     return events;
   }
+}
 
-  async syncProductRecalls(productSku: string): Promise<ConnectorResult> {
-    const errors: string[] = [];
-    let eventsCreated = 0;
+// Export singleton instance
+export const nhtsaConnector = new NHTSAConnector();
 
-    try {
-      // Find product and extract vehicle info from name or metadata
-      const product = await prisma.product.findUnique({
-        where: { sku: productSku }
-      });
+// Export functions for module interface
+export async function searchByText(query: string, opts?: NHTSASearchOptions): Promise<ConnectorEvent[]> {
+  return nhtsaConnector.searchByText(query, opts);
+}
 
-      if (!product) {
-        throw new Error(`Product not found: ${productSku}`);
-      }
+export async function fetchEventsForEntity(
+  entity: { type: string; name?: string; id?: string },
+  opts?: NHTSASearchOptions
+): Promise<ConnectorEvent[]> {
+  return nhtsaConnector.fetchEventsForEntity(entity, opts);
+}
 
-      // Parse vehicle info from product name or metadata
-      // Example: "2022 Honda Civic" or SKU like "HONDA-CIVIC-2022"
-      const vehicleInfo = this.parseVehicleInfo(product.name || product.sku);
-
-      if (!vehicleInfo) {
-        errors.push('Could not parse vehicle information from product');
-        return { success: false, eventsCreated: 0, errors };
-      }
-
-      // Fetch recalls
-      const recalls = await this.fetchVehicleRecalls(
-        vehicleInfo.make,
-        vehicleInfo.model,
-        vehicleInfo.year
-      );
-
-      console.log(`Found ${recalls.length} recalls for ${vehicleInfo.make} ${vehicleInfo.model} ${vehicleInfo.year}`);
-
-      // Process and store recalls
-      const events = await this.processRecalls(recalls, product.id, product.companyId || undefined);
-      eventsCreated = events.length;
-
-      return {
-        success: true,
-        eventsCreated,
-        errors,
-        lastFetch: new Date()
-      };
-    } catch (error: any) {
-      errors.push(error.message || 'Unknown error');
-      return {
-        success: false,
-        eventsCreated,
-        errors
-      };
-    }
-  }
-
-  private parseVehicleInfo(text: string): { make: string; model: string; year: string } | null {
-    // Try to parse various formats
-    // Format 1: "2022 Honda Civic"
-    const yearFirstPattern = /(\d{4})\s+(\w+)\s+(.+)/;
-    const yearFirstMatch = text.match(yearFirstPattern);
-
-    if (yearFirstMatch) {
-      return {
-        year: yearFirstMatch[1],
-        make: yearFirstMatch[2],
-        model: yearFirstMatch[3].trim()
-      };
-    }
-
-    // Format 2: "Honda Civic 2022"
-    const yearLastPattern = /(\w+)\s+(.+?)\s+(\d{4})/;
-    const yearLastMatch = text.match(yearLastPattern);
-
-    if (yearLastMatch) {
-      return {
-        make: yearLastMatch[1],
-        model: yearLastMatch[2].trim(),
-        year: yearLastMatch[3]
-      };
-    }
-
-    // Format 3: SKU like "HONDA-CIVIC-2022"
-    const skuPattern = /(\w+)-(\w+)-(\d{4})/;
-    const skuMatch = text.match(skuPattern);
-
-    if (skuMatch) {
-      return {
-        make: skuMatch[1],
-        model: skuMatch[2],
-        year: skuMatch[3]
-      };
-    }
-
-    return null;
-  }
-
-  async runBatch(limit: number = 10): Promise<ConnectorResult> {
-    const errors: string[] = [];
-    let totalEventsCreated = 0;
-
-    try {
-      // Get products that look like vehicles
-      const products = await prisma.product.findMany({
-        where: {
-          category: 'automotive'
-        },
-        take: limit
-      });
-
-      for (const product of products) {
-        const result = await this.syncProductRecalls(product.sku);
-        totalEventsCreated += result.eventsCreated;
-        errors.push(...result.errors);
-      }
-
-      return {
-        success: errors.length === 0,
-        eventsCreated: totalEventsCreated,
-        errors,
-        lastFetch: new Date()
-      };
-    } catch (error: any) {
-      errors.push(error.message || 'Unknown error');
-      return {
-        success: false,
-        eventsCreated: totalEventsCreated,
-        errors
-      };
-    }
-  }
+export function registerToConnectorRunner(runner: any): void {
+  nhtsaConnector.registerToConnectorRunner(runner);
 }
 
 // CLI support
 if (require.main === module) {
   const args = process.argv.slice(2);
 
-  if (args.includes('--run')) {
-    const connector = new NHTSAConnector();
+  if (args.includes('--search')) {
+    const queryIndex = args.indexOf('--search') + 1;
+    const query = args[queryIndex] || '2022 Honda Civic';
 
-    // Example: fetch recalls for a specific vehicle
-    const exampleRun = async () => {
-      try {
-        // Test with a known vehicle
-        const recalls = await connector.fetchVehicleRecalls('Honda', 'Civic', '2022');
-        console.log(`Found ${recalls.length} recalls for 2022 Honda Civic`);
-
-        if (recalls.length > 0) {
-          // Process first 3 recalls as example
-          const events = await connector.processRecalls(recalls.slice(0, 3));
-          console.log(`Created ${events.length} event records`);
-        }
-
-        process.exit(0);
-      } catch (error) {
-        console.error('Error running NHTSA connector:', error);
-        process.exit(1);
-      }
-    };
-
-    exampleRun();
-  } else if (args.includes('--batch')) {
-    const connector = new NHTSAConnector();
-
-    connector.runBatch(5).then(result => {
-      console.log('Batch run completed:', result);
-      process.exit(result.success ? 0 : 1);
+    searchByText(query, { limit: 10 }).then(events => {
+      console.log(`Found ${events.length} events for "${query}"`);
+      console.log(JSON.stringify(events, null, 2));
+      process.exit(0);
     }).catch(error => {
-      console.error('Batch run failed:', error);
+      console.error('Search failed:', error);
+      process.exit(1);
+    });
+  } else if (args.includes('--entity')) {
+    const nameIndex = args.indexOf('--entity') + 1;
+    const name = args[nameIndex] || 'Honda';
+
+    fetchEventsForEntity({ type: 'company', name }, { limit: 10 }).then(events => {
+      console.log(`Found ${events.length} events for company "${name}"`);
+      console.log(JSON.stringify(events, null, 2));
+      process.exit(0);
+    }).catch(error => {
+      console.error('Entity fetch failed:', error);
       process.exit(1);
     });
   } else {
-    console.log('Usage: ts-node nhtsaConnector.ts --run | --batch');
+    console.log('Usage: ts-node nhtsaConnector.ts --search "query" | --entity "company_name"');
     process.exit(1);
   }
 }
-
-export const nhtsaConnector = new NHTSAConnector();
