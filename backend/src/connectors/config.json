@@ -1,0 +1,97 @@
+{
+  "connectors": {
+    "nhtsa": {
+      "enabled": true,
+      "rateLimitPerMinute": 60,
+      "docs": "https://www.nhtsa.gov/nhtsa-datasets-and-apis",
+      "apiKey": null,
+      "description": "NHTSA public API for vehicle recalls (no API key required)"
+    },
+    "cfpb": {
+      "enabled": true,
+      "rateLimitPerMinute": 30,
+      "docs": "https://cfpb.github.io/api/ccdb/api.html",
+      "apiKey": null,
+      "description": "CFPB Consumer Complaints Database API (public, no key required)"
+    },
+    "cpsc": {
+      "enabled": true,
+      "rateLimitPerMinute": 60,
+      "docs": "https://www.cpsc.gov/Recalls/CPSC-Recalls-RestWebService",
+      "apiKey": null,
+      "description": "CPSC Product Recalls API (public, no key required)"
+    },
+    "newsapi": {
+      "enabled": false,
+      "rateLimitPerMinute": 500,
+      "docs": "https://newsapi.org/docs",
+      "apiKey": "${NEWSAPI_KEY}",
+      "description": "News API for company/product news (requires API key)"
+    },
+    "courtlistener": {
+      "enabled": true,
+      "rateLimitPerHour": 5000,
+      "docs": "https://www.courtlistener.com/help/api/rest/",
+      "apiKey": "${COURTLISTENER_API_KEY}",
+      "description": "Legal cases, opinions, and dockets from CourtListener (requires API key, 5k req/hour)"
+    },
+    "trustpilot": {
+      "enabled": false,
+      "rateLimitPerMinute": 120,
+      "docs": "https://developers.trustpilot.com/",
+      "apiKey": "${TRUSTPILOT_API_KEY}",
+      "description": "Business reviews and ratings (requires API key)"
+    },
+    "opencorporates": {
+      "enabled": true,
+      "rateLimitPerDay": 50,
+      "docs": "https://api.opencorporates.com/documentation/API-Reference",
+      "apiKey": "${OPENCORPORATES_KEY}",
+      "description": "Company records and legal filings from OpenCorporates (optional API key, 50 req/day free tier)"
+    },
+    "openfda": {
+      "enabled": true,
+      "rateLimitPerMinute": 240,
+      "rateLimitPerDay": 1000,
+      "rateLimitPerDayWithKey": 120000,
+      "docs": "https://open.fda.gov/apis/",
+      "apiKey": "${OPENFDA_API_KEY}",
+      "description": "FDA adverse events and recalls for drugs and devices (optional API key, 240 req/min, 1k req/day without key, 120k req/day with key)"
+    },
+    "datagov": {
+      "enabled": true,
+      "rateLimitPerHour": 30,
+      "rateLimitPerHourWithKey": 1000,
+      "docs": "https://api.data.gov/docs/developer-manual/",
+      "apiKey": "${DATA_GOV_API_KEY}",
+      "description": "Government datasets, recalls, and advisories from data.gov catalog (optional API key, 30 req/hour without key, 1k req/hour with key)"
+    },
+    "secedgar": {
+      "enabled": true,
+      "rateLimitPerSecond": 8,
+      "docs": "https://www.sec.gov/search-filings/edgar-application-programming-interfaces",
+      "apiKey": null,
+      "description": "SEC EDGAR company filings mentioning product liability, recalls, class actions (no API key, requires User-Agent, 10 req/sec limit)"
+    },
+    "gdelt": {
+      "enabled": true,
+      "rateLimitPerMinute": 30,
+      "docs": "https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/",
+      "apiKey": null,
+      "description": "GDELT Global Database of Events, Language, and Tone - news articles with sentiment analysis (no API key, 30 req/min, max 250 records per query)"
+    },
+    "ftc": {
+      "enabled": true,
+      "rateLimitPerMinute": 30,
+      "docs": "https://www.ftc.gov/developer",
+      "apiKey": "${DATA_GOV_API_KEY}",
+      "description": "FTC enforcement actions, consumer alerts, and business guidance from press release RSS feeds (optional API key, 30 req/min)"
+    }
+  },
+  "defaults": {
+    "retryAttempts": 3,
+    "retryDelayMs": 1000,
+    "timeoutMs": 10000,
+    "maxEventsPerFetch": 100
+  }
+}
