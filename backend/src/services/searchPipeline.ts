@@ -188,12 +188,49 @@ export class SearchPipelineService {
     try {
       const connector = new NHTSAConnector();
       // NHTSA is public API - no robots.txt issues
-      const recalls = await connector.fetchVehicleRecalls('Honda', 'Civic', '2022');
-      const eventsArray = await connector.processRecalls(recalls, product.id);
+      const connectorEvents = await connector.searchByText(product.name || product.sku, { limit: 5 });
+
+      // Save events to database
+      let eventsCreated = 0;
+      for (const event of connectorEvents) {
+        try {
+          // Check if event already exists
+          const existing = await prisma.event.findFirst({
+            where: {
+              source: event.source,
+              type: event.type,
+              rawUrl: event.rawUrl
+            }
+          });
+
+          if (!existing) {
+            await prisma.event.create({
+              data: {
+                productId: product.id,
+                source: event.source,
+                type: event.type,
+                severity: event.severity * 5, // Convert 0-1 to 0-5 scale
+                detailsJson: JSON.stringify({
+                  ...event.detailsJson,
+                  title: event.title,
+                  description: event.description
+                }),
+                rawUrl: event.rawUrl,
+                rawRef: event.rawRef,
+                parsedAt: new Date()
+              }
+            });
+            eventsCreated++;
+          }
+        } catch (err) {
+          console.error('Error saving NHTSA event:', err);
+        }
+      }
+
       return {
         connector: 'NHTSA',
         success: true,
-        eventsCreated: eventsArray.length
+        eventsCreated
       };
     } catch (error) {
       return {
@@ -213,10 +250,10 @@ export class SearchPipelineService {
       const connector = new CPSCConnector();
       // Robots.txt check removed - CPSC public API doesn't require it
 
-      // Proceed directly with fetching recalls
-      const recalls = await connector.fetchRecalls(product.name || product.sku, 5);
+      // Fetch recalls using new interface
+      const connectorEvents = await connector.searchByText(product.name || product.sku, { limit: 5 });
 
-      if (!recalls || recalls.length === 0) {
+      if (!connectorEvents || connectorEvents.length === 0) {
         return {
           connector: 'CPSC',
           success: true,
@@ -226,11 +263,47 @@ export class SearchPipelineService {
         };
       }
 
-      const events = await connector.processRecalls(recalls, product.id);
+      // Save events to database
+      let eventsCreated = 0;
+      for (const event of connectorEvents) {
+        try {
+          // Check if event already exists
+          const existing = await prisma.event.findFirst({
+            where: {
+              source: event.source,
+              type: event.type,
+              rawUrl: event.rawUrl
+            }
+          });
+
+          if (!existing) {
+            await prisma.event.create({
+              data: {
+                productId: product.id,
+                source: event.source,
+                type: event.type,
+                severity: event.severity * 5, // Convert 0-1 to 0-5 scale
+                detailsJson: JSON.stringify({
+                  ...event.detailsJson,
+                  title: event.title,
+                  description: event.description
+                }),
+                rawUrl: event.rawUrl,
+                rawRef: event.rawRef,
+                parsedAt: new Date()
+              }
+            });
+            eventsCreated++;
+          }
+        } catch (err) {
+          console.error('Error saving CPSC event:', err);
+        }
+      }
+
       return {
         connector: 'CPSC',
         success: true,
-        eventsCreated: events
+        eventsCreated
       };
     } catch (error) {
       return {
@@ -248,12 +321,52 @@ export class SearchPipelineService {
   private async runCFPBConnector(company: any): Promise<ConnectorResult> {
     try {
       const connector = new CFPBConnector();
-      const syncResult = await connector.syncCompanyComplaints(company.name);
+      const connectorEvents = await connector.fetchEventsForEntity(
+        { type: 'company', name: company.name },
+        { limit: 25 }
+      );
+
+      // Save events to database
+      let eventsCreated = 0;
+      for (const event of connectorEvents) {
+        try {
+          // Check if event already exists
+          const existing = await prisma.event.findFirst({
+            where: {
+              source: event.source,
+              type: event.type,
+              rawUrl: event.rawUrl
+            }
+          });
+
+          if (!existing) {
+            await prisma.event.create({
+              data: {
+                companyId: company.id,
+                source: event.source,
+                type: event.type,
+                severity: event.severity * 5, // Convert 0-1 to 0-5 scale
+                detailsJson: JSON.stringify({
+                  ...event.detailsJson,
+                  title: event.title,
+                  description: event.description
+                }),
+                rawUrl: event.rawUrl,
+                rawRef: event.rawRef,
+                parsedAt: new Date()
+              }
+            });
+            eventsCreated++;
+          }
+        } catch (err) {
+          console.error('Error saving CFPB event:', err);
+        }
+      }
+
       return {
         connector: 'CFPB',
-        success: syncResult.success,
-        eventsCreated: syncResult.eventsCreated,
-        error: syncResult.errors.length > 0 ? syncResult.errors.join('; ') : undefined
+        success: true,
+        eventsCreated
       };
     } catch (error) {
       return {
