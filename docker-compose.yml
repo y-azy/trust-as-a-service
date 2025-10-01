@@ -45,6 +45,7 @@ services:
       NEWSAPI_KEY: ${NEWSAPI_KEY:-}
       TRUSTPILOT_API_KEY: ${TRUSTPILOT_API_KEY:-}
       GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY:-}
+      TRUST_INCLUDE_DIAGNOSTICS: ${TRUST_INCLUDE_DIAGNOSTICS:-true}
     depends_on:
       - redis
     networks:

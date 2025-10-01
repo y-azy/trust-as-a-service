@@ -1,6 +1,7 @@
 import { PrismaClient, Event, Score } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
+import { aggregateTrust, breakdownToSignals, AggregationResult } from './trustAggregator';
 
 const prisma = new PrismaClient();
 
@@ -39,6 +40,7 @@ interface ScoreResult {
   breakdown: ScoreBreakdown[];
   configVersion: string;
   confidence: number;
+  diagnostics?: AggregationResult; // Optional Bayesian diagnostics
 }
 
 interface ParsedPolicy {
@@ -242,12 +244,25 @@ class TrustScoreService {
     const score = totalWeight > 0 ? (totalWeightedScore / totalWeight) / 100 : 0;
     const confidence = this.calculateConfidence(events.length);
 
+    // Apply Bayesian aggregation if enabled
+    let diagnostics: AggregationResult | undefined;
+    if (process.env.TRUST_INCLUDE_DIAGNOSTICS === 'true') {
+      const signals = breakdownToSignals(breakdown, { includeZeroValues: true });
+      diagnostics = aggregateTrust(signals, {
+        prior: 0.5,
+        alphaStrategy: 'missingSum',
+        minCoverageWarn: 0.4,
+        vertical: company?.industry || 'general'
+      });
+    }
+
     return {
       score: Math.round(score * 100) / 100,
       grade: this.getGrade(score * 100),
       breakdown,
       configVersion: config.version,
-      confidence
+      confidence,
+      ...(diagnostics && { diagnostics })
     };
   }
 
@@ -287,12 +302,25 @@ class TrustScoreService {
     const score = totalWeight > 0 ? (totalWeightedScore / totalWeight) / 100 : 0;
     const confidence = this.calculateConfidence(events.length, parsedPolicy?.policy_confidence);
 
+    // Apply Bayesian aggregation if enabled
+    let diagnostics: AggregationResult | undefined;
+    if (process.env.TRUST_INCLUDE_DIAGNOSTICS === 'true') {
+      const signals = breakdownToSignals(breakdown, { includeZeroValues: true });
+      diagnostics = aggregateTrust(signals, {
+        prior: 0.5,
+        alphaStrategy: 'missingSum',
+        minCoverageWarn: 0.4,
+        vertical: product?.category || 'general'
+      });
+    }
+
     return {
       score: Math.round(score * 100) / 100,
       grade: this.getGrade(score * 100),
       breakdown,
       configVersion: config.version,
-      confidence
+      confidence,
+      ...(diagnostics && { diagnostics })
     };
   }
 
@@ -331,12 +359,25 @@ class TrustScoreService {
     const score = totalWeight > 0 ? (totalWeightedScore / totalWeight) / 100 : 0;
     const confidence = this.calculateConfidence(events.length);
 
+    // Apply Bayesian aggregation if enabled
+    let diagnostics: AggregationResult | undefined;
+    if (process.env.TRUST_INCLUDE_DIAGNOSTICS === 'true') {
+      const signals = breakdownToSignals(breakdown, { includeZeroValues: true });
+      diagnostics = aggregateTrust(signals, {
+        prior: 0.5,
+        alphaStrategy: 'missingSum',
+        minCoverageWarn: 0.4,
+        vertical: 'service'
+      });
+    }
+
     return {
       score: Math.round(score * 100) / 100,
       grade: this.getGrade(score * 100),
       breakdown,
       configVersion: config.version,
-      confidence
+      confidence,
+      ...(diagnostics && { diagnostics })
     };
   }
 

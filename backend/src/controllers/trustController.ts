@@ -50,7 +50,7 @@ export const trustController = {
       let latestScore: typeof product.scores[0] | null = product.scores[0] || null;
 
       if (!latestScore) {
-        // Trigger recompute
+        // Trigger recompute (diagnostics will be included if TRUST_INCLUDE_DIAGNOSTICS=true)
         const { scoreRecomputeJob } = require('../jobs/scoreRecompute');
         await scoreRecomputeJob.recomputeProductScore(product.id);
 
@@ -104,7 +104,7 @@ export const trustController = {
         : latestScore.breakdownJson;
 
       // Build response
-      const response = {
+      const response: any = {
         sku: product.sku,
         name: product.name,
         score: latestScore.score,
@@ -119,6 +119,28 @@ export const trustController = {
         computedAt: new Date().toISOString(),
         cached: false
       };
+
+      // Include diagnostics if enabled via env var
+      // Note: diagnostics will be generated live when score is computed with TRUST_INCLUDE_DIAGNOSTICS=true
+      // For now, we trigger a fresh calculation if diagnostics are requested but not in stored score
+      if (process.env.TRUST_INCLUDE_DIAGNOSTICS === 'true') {
+        const { trustScoreService } = require('../services/trustScore');
+        const policyEvent = product.events.find((e: any) => e.type === 'policy');
+        const parsedPolicy = policyEvent?.detailsJson
+          ? (typeof policyEvent.detailsJson === 'string'
+              ? JSON.parse(policyEvent.detailsJson)
+              : policyEvent.detailsJson)
+          : undefined;
+
+        const freshScore = await trustScoreService.calculateProductScore(
+          product.id,
+          product.events,
+          parsedPolicy?.parsed
+        );
+        if (freshScore.diagnostics) {
+          response.diagnostics = freshScore.diagnostics;
+        }
+      }
 
       // Cache the response for 1 hour (3600 seconds)
       await cacheSetJson(cacheKey, response, 3600);
@@ -203,7 +225,7 @@ export const trustController = {
         : latestScore.breakdownJson;
 
       // Build response
-      const response = {
+      const response: any = {
         id: company.id,
         name: company.name,
         domain: company.domain,
@@ -216,6 +238,19 @@ export const trustController = {
         computedAt: new Date().toISOString(),
         cached: false
       };
+
+      // Include diagnostics if enabled via env var
+      if (process.env.TRUST_INCLUDE_DIAGNOSTICS === 'true') {
+        const { trustScoreService } = require('../services/trustScore');
+        // Fetch company events for fresh calculation
+        const companyEvents = await prisma.event.findMany({
+          where: { companyId: company.id }
+        });
+        const freshScore = await trustScoreService.calculateCompanyScore(company.id, companyEvents);
+        if (freshScore.diagnostics) {
+          response.diagnostics = freshScore.diagnostics;
+        }
+      }
 
       // Cache the response for 1 hour (3600 seconds)
       await cacheSetJson(cacheKey, response, 3600);
