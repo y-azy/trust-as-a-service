@@ -45,4 +45,4 @@ Thumbs.db
 # Misc
 *.pid
 .next/
-out/
+out/backend/db/trust.db.backup-*
