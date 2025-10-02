@@ -41,6 +41,7 @@ Thumbs.db
 # Database
 *.db
 *.sqlite
+backend/db/
 
 # Misc
 *.pid
