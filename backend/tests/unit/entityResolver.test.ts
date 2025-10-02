@@ -4,9 +4,11 @@ import request from 'supertest';
 import app from '../../src/app';
 import * as cache from '../../src/services/cache';
 
-// Use test database
-const TEST_DB_URL = 'file:./dev.test.db';
-process.env.DATABASE_URL = TEST_DB_URL;
+// Use test database from environment (CI provides PostgreSQL URL)
+const TEST_DB_URL = process.env.DATABASE_URL || 'postgresql://testuser:testpass@localhost:5432/testdb';
+if (!process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = TEST_DB_URL;
+}
 
 // Disable Redis for tests (use in-memory cache)
 delete process.env.REDIS_URL;
@@ -35,95 +37,20 @@ jest.mock('openai', () => {
   };
 });
 
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: TEST_DB_URL
-    }
-  }
-});
+// Use Prisma Client with environment DATABASE_URL (already set above)
+const prisma = new PrismaClient();
 
 describe('Entity Resolver', () => {
   let testCompanyId: string;
   let testProductIds: { ip13: string; bose: string; samsung: string };
 
   beforeAll(async () => {
-    // Create test database schema
-    await prisma.$executeRaw`DROP TABLE IF EXISTS Score`;
-    await prisma.$executeRaw`DROP TABLE IF EXISTS Event`;
-    await prisma.$executeRaw`DROP TABLE IF EXISTS Product`;
-    await prisma.$executeRaw`DROP TABLE IF EXISTS Company`;
-    await prisma.$executeRaw`DROP TABLE IF EXISTS Source`;
-
-    // Create tables
-    await prisma.$executeRaw`
-      CREATE TABLE Company (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        domain TEXT UNIQUE,
-        industry TEXT,
-        country TEXT,
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `;
-
-    await prisma.$executeRaw`
-      CREATE TABLE Product (
-        id TEXT PRIMARY KEY,
-        sku TEXT UNIQUE NOT NULL,
-        companyId TEXT,
-        name TEXT NOT NULL,
-        category TEXT,
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (companyId) REFERENCES Company(id)
-      )
-    `;
-
-    await prisma.$executeRaw`
-      CREATE TABLE Event (
-        id TEXT PRIMARY KEY,
-        companyId TEXT,
-        productId TEXT,
-        source TEXT NOT NULL,
-        type TEXT NOT NULL,
-        severity REAL,
-        detailsJson TEXT,
-        rawUrl TEXT,
-        rawRef TEXT,
-        parsedAt DATETIME,
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (productId) REFERENCES Product(id)
-      )
-    `;
-
-    await prisma.$executeRaw`
-      CREATE TABLE Score (
-        id TEXT PRIMARY KEY,
-        companyId TEXT,
-        productId TEXT,
-        scope TEXT NOT NULL,
-        score REAL NOT NULL,
-        breakdownJson TEXT NOT NULL,
-        configVersion TEXT NOT NULL,
-        confidence REAL NOT NULL,
-        evidenceIds TEXT NOT NULL,
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (companyId) REFERENCES Company(id),
-        FOREIGN KEY (productId) REFERENCES Product(id)
-      )
-    `;
-
-    await prisma.$executeRaw`
-      CREATE TABLE Source (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        domain TEXT NOT NULL,
-        metaJson TEXT,
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `;
+    // Clean up any existing test data (schema already created by Prisma migrations)
+    await prisma.score.deleteMany();
+    await prisma.event.deleteMany();
+    await prisma.product.deleteMany();
+    await prisma.company.deleteMany();
+    await prisma.source.deleteMany();
 
     // Seed test data
     const company = await prisma.company.create({
