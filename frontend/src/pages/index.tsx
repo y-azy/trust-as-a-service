@@ -6,6 +6,7 @@ import ProductCard from '@/components/ProductCard'
 import SearchFilter from '@/components/SearchFilter'
 import ScoreVisualization from '@/components/ScoreVisualization'
 import SearchResults from '@/components/SearchResults'
+import ChatInterface from '@/components/ChatInterface'
 import { useSearch } from '@/hooks/useSearch'
 
 interface Product {
@@ -28,16 +29,25 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [featuredError, setFeaturedError] = useState<string | null>(null)
+  const [stats, setStats] = useState<{
+    totalProducts: number
+    avgScore: number
+    dataSources: number
+    accuracy: number
+  } | null>(null)
 
   // Use resolver-based search hook
   const { results: resolverResults, loading: resolverLoading, error: resolverError, search: searchWithResolver } = useSearch()
 
   useEffect(() => {
     fetchFeaturedProducts()
+    fetchStats()
   }, [])
 
   const fetchFeaturedProducts = async () => {
     try {
+      setFeaturedError(null)
       const response = await axios.get(
         `${process.env.NEXT_PUBLIC_API_URL}/api/products/featured`,
         {
@@ -49,42 +59,26 @@ export default function Home() {
       setFeaturedProducts(response.data)
     } catch (error) {
       console.error('Failed to fetch featured products:', error)
-      // Use mock data for demonstration
-      setFeaturedProducts([
+      setFeaturedError('Failed to load featured products. Please try again later.')
+      setFeaturedProducts([])
+    }
+  }
+
+  const fetchStats = async () => {
+    try {
+      const response = await axios.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/stats`,
         {
-          sku: 'IPHONE-13-PRO-MAX',
-          name: 'iPhone 13 Pro Max',
-          brand: 'Apple',
-          score: 88,
-          grade: 'A',
-          policyScore: 90,
-          companyScore: 92,
-          price: 1099,
-          warrantyMonths: 12
-        },
-        {
-          sku: 'BOSE-QC45',
-          name: 'Bose QuietComfort 45',
-          brand: 'Bose',
-          score: 85,
-          grade: 'A',
-          policyScore: 82,
-          companyScore: 88,
-          price: 329,
-          warrantyMonths: 12
-        },
-        {
-          sku: 'SAMSUNG-WF45',
-          name: 'Samsung Washer WF45',
-          brand: 'Samsung',
-          score: 82,
-          grade: 'B',
-          policyScore: 78,
-          companyScore: 80,
-          price: 899,
-          warrantyMonths: 24
+          headers: {
+            'X-API-Key': process.env.NEXT_PUBLIC_API_KEY || 'changeme'
+          }
         }
-      ])
+      )
+      setStats(response.data)
+    } catch (error) {
+      console.error('Failed to fetch stats:', error)
+      // Don't show stats if they fail to load
+      setStats(null)
     }
   }
 
@@ -121,13 +115,7 @@ export default function Home() {
       setSearchResults(response.data.results || [])
     } catch (error) {
       console.error('Search failed:', error)
-      // For demo, filter featured products
-      setSearchResults(
-        featuredProducts.filter(p =>
-          p.name.toLowerCase().includes(query.toLowerCase()) ||
-          p.brand?.toLowerCase().includes(query.toLowerCase())
-        )
-      )
+      setSearchResults([])
     } finally {
       setLoading(false)
     }
@@ -270,42 +258,60 @@ export default function Home() {
             ) : (
               <>
                 <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-6">Featured Products</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-                  {featuredProducts.map((product) => (
-                    <ProductCard key={product.sku} {...product} />
-                  ))}
-                </div>
+                {featuredError ? (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+                    <p className="text-red-700 mb-3">{featuredError}</p>
+                    <button
+                      onClick={fetchFeaturedProducts}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                    >
+                      Try Again
+                    </button>
+                  </div>
+                ) : featuredProducts.length === 0 ? (
+                  <div className="text-center py-12 bg-gray-50 rounded-lg">
+                    <p className="text-gray-500">No featured products available. Start searching above!</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                    {featuredProducts.map((product) => (
+                      <ProductCard key={product.sku} {...product} />
+                    ))}
+                  </div>
+                )}
               </>
             )
           )}
         </div>
 
-        {/* Stats Section - Responsive */}
-        <div className="bg-white py-8 md:py-12">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-6 text-center">
-              Trust Score Statistics
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-              <div className="bg-gray-50 rounded-lg p-4 text-center">
-                <p className="text-2xl md:text-3xl font-bold text-blue-600">156+</p>
-                <p className="text-sm md:text-base text-gray-600 mt-1">Products Analyzed</p>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-4 text-center">
-                <p className="text-2xl md:text-3xl font-bold text-green-600">72</p>
-                <p className="text-sm md:text-base text-gray-600 mt-1">Avg Trust Score</p>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-4 text-center">
-                <p className="text-2xl md:text-3xl font-bold text-yellow-600">1.2K+</p>
-                <p className="text-sm md:text-base text-gray-600 mt-1">Data Sources</p>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-4 text-center">
-                <p className="text-2xl md:text-3xl font-bold text-purple-600">98%</p>
-                <p className="text-sm md:text-base text-gray-600 mt-1">Accuracy Rate</p>
+        {/* Stats Section - Responsive - Only show if stats are available */}
+        {stats && (
+          <div className="bg-white py-8 md:py-12">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-6 text-center">
+                Trust Score Statistics
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+                <div className="bg-gray-50 rounded-lg p-4 text-center">
+                  <p className="text-2xl md:text-3xl font-bold text-blue-600">{stats.totalProducts}</p>
+                  <p className="text-sm md:text-base text-gray-600 mt-1">Products Analyzed</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4 text-center">
+                  <p className="text-2xl md:text-3xl font-bold text-green-600">{stats.avgScore}</p>
+                  <p className="text-sm md:text-base text-gray-600 mt-1">Avg Trust Score</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4 text-center">
+                  <p className="text-2xl md:text-3xl font-bold text-yellow-600">{stats.dataSources}</p>
+                  <p className="text-sm md:text-base text-gray-600 mt-1">Data Sources</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4 text-center">
+                  <p className="text-2xl md:text-3xl font-bold text-purple-600">{stats.accuracy}%</p>
+                  <p className="text-sm md:text-base text-gray-600 mt-1">Accuracy Rate</p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* How It Works - Responsive */}
         <div className="bg-gradient-to-br from-gray-50 to-white py-8 md:py-12">
@@ -383,6 +389,9 @@ export default function Home() {
             </div>
           </div>
         </footer>
+
+        {/* AI Chat Interface */}
+        <ChatInterface />
       </div>
     </>
   )

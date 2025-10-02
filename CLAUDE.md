@@ -51,12 +51,15 @@ npm start                      # Run production build
 ### Docker Operations
 ```bash
 # Full stack
-docker-compose up --build      # Build and run all services
-docker-compose down            # Stop all services
+docker compose up --build      # Build and run all services
+docker compose down            # Stop all services
 
 # Individual services
-docker-compose up postgres     # Start only PostgreSQL
-docker-compose up backend      # Start backend with dependencies
+docker compose up -d postgres  # Start only PostgreSQL
+docker compose up backend      # Start backend with dependencies
+
+# Rebuild from scratch
+docker compose build --no-cache && docker compose up -d
 ```
 
 ## Architecture & Core Concepts
@@ -172,7 +175,88 @@ API_KEY_MAIN=changeme   # API authentication
 NEWSAPI_KEY=            # News articles
 COURTLISTENER_API_KEY=  # Legal cases
 TRUSTPILOT_API_KEY=     # Business reviews
+DATA_GOV_API_KEY=       # Data.gov APIs
 ```
+
+### PostgreSQL Setup
+
+The application uses PostgreSQL for all environments (local, Docker, production).
+
+#### Local Development Setup
+
+1. **Start PostgreSQL via Docker:**
+   ```bash
+   docker compose up -d postgres
+   ```
+
+2. **Configure environment variables in `backend/.env`:**
+   ```bash
+   DATABASE_URL="postgresql://trustuser:trustpass@localhost:5432/trustdb"
+   OPENAI_API_KEY=your_openai_api_key_here
+   DATA_GOV_API_KEY=your_data_gov_api_key_here
+   COURTLISTENER_API_KEY=your_courtlistener_api_key_here
+   ```
+
+3. **Apply migrations and seed data:**
+   ```bash
+   cd backend
+   npx prisma db push              # Sync schema to database
+   npm run seed                    # Seed initial data
+   npx ts-node src/scripts/populateRealData.ts  # Populate real data from connectors
+   ```
+
+4. **Start dev server:**
+   ```bash
+   npm run dev                     # Runs on http://localhost:4000
+   ```
+
+#### Docker Environment Setup
+
+1. **Configure root `.env` file for Docker Compose:**
+   ```bash
+   # Create .env in project root
+   OPENAI_API_KEY=your_openai_api_key_here
+   DATA_GOV_API_KEY=your_data_gov_api_key_here
+   COURTLISTENER_API_KEY=your_courtlistener_api_key_here
+   API_KEY_MAIN=changeme
+   FRONTEND_URL=http://localhost:3000
+   ```
+
+2. **Build and run all services:**
+   ```bash
+   docker compose build --no-cache
+   docker compose up -d
+   ```
+
+3. **Verify services:**
+   - Backend: http://localhost:4000/health
+   - Frontend: http://localhost:3000
+   - PostgreSQL: localhost:5432
+   - Redis: localhost:6379
+
+#### Production Deployment
+
+For production PostgreSQL setup:
+
+1. **Use managed PostgreSQL service** (recommended):
+   - AWS RDS, Google Cloud SQL, Azure Database, or DigitalOcean Managed Databases
+   - Configure connection pooling (e.g., PgBouncer)
+   - Enable SSL/TLS connections
+
+2. **Set production DATABASE_URL:**
+   ```bash
+   DATABASE_URL="postgresql://user:password@prod-host:5432/database?sslmode=require"
+   ```
+
+3. **Run migrations in production:**
+   ```bash
+   npx prisma migrate deploy       # Apply pending migrations
+   ```
+
+4. **Environment variables for production:**
+   - Set all API keys as environment variables (never commit to git)
+   - Use secrets management (AWS Secrets Manager, Vault, etc.)
+   - Enable `NODE_ENV=production`
 
 ## Data Flow
 

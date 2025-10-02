@@ -38,71 +38,90 @@ async function main() {
 
   console.log('Created sources:', { amazonSource, bestBuySource });
 
-  // Seed a sample Company
-  const sampleCompany = await prisma.company.upsert({
-    where: { domain: 'sampletech.com' },
-    update: {},
-    create: {
-      name: 'SampleTech Inc.',
-      domain: 'sampletech.com',
-      industry: 'electronics',
-      country: 'US'
+  // Seed Companies
+  const companies = [
+    { name: 'Apple', domain: 'apple.com', industry: 'electronics', country: 'US' },
+    { name: 'Samsung', domain: 'samsung.com', industry: 'electronics', country: 'South Korea' },
+    { name: 'Honda', domain: 'honda.com', industry: 'automotive', country: 'Japan' },
+    { name: 'Toyota', domain: 'toyota.com', industry: 'automotive', country: 'Japan' },
+    { name: 'Ford', domain: 'ford.com', industry: 'automotive', country: 'US' },
+    { name: 'Sony', domain: 'sony.com', industry: 'electronics', country: 'Japan' },
+    { name: 'LG', domain: 'lg.com', industry: 'electronics', country: 'South Korea' },
+    { name: 'Bose', domain: 'bose.com', industry: 'electronics', country: 'US' },
+    { name: 'Whirlpool', domain: 'whirlpool.com', industry: 'appliance', country: 'US' },
+    { name: 'GE Appliances', domain: 'geappliances.com', industry: 'appliance', country: 'US' }
+  ];
+
+  const companyMap = new Map();
+  for (const company of companies) {
+    const createdCompany = await prisma.company.upsert({
+      where: { domain: company.domain },
+      update: {},
+      create: company
+    });
+    companyMap.set(company.name, createdCompany);
+    console.log(`Created company: ${company.name}`);
+  }
+
+  // Seed Products (25 diverse products across categories)
+  const products = [
+    // Electronics - Phones
+    { sku: 'APPLE-IPHONE-14', name: 'iPhone 14', category: 'electronics_phone', company: 'Apple' },
+    { sku: 'APPLE-IPHONE-13', name: 'iPhone 13 Pro', category: 'electronics_phone', company: 'Apple' },
+    { sku: 'SAMSUNG-S23', name: 'Samsung Galaxy S23', category: 'electronics_phone', company: 'Samsung' },
+    { sku: 'SAMSUNG-S22', name: 'Samsung Galaxy S22', category: 'electronics_phone', company: 'Samsung' },
+
+    // Electronics - Audio
+    { sku: 'BOSE-QC45', name: 'Bose QuietComfort 45', category: 'electronics_audio', company: 'Bose' },
+    { sku: 'SONY-WH1000XM5', name: 'Sony WH-1000XM5', category: 'electronics_audio', company: 'Sony' },
+    { sku: 'BOSE-700', name: 'Bose Headphones 700', category: 'electronics_audio', company: 'Bose' },
+
+    // Electronics - Computers
+    { sku: 'APPLE-MACBOOK-PRO-14', name: 'MacBook Pro 14"', category: 'electronics_computer', company: 'Apple' },
+    { sku: 'APPLE-MACBOOK-AIR-M2', name: 'MacBook Air M2', category: 'electronics_computer', company: 'Apple' },
+
+    // Electronics - TVs
+    { sku: 'SAMSUNG-TV-55', name: 'Samsung Smart TV 55"', category: 'electronics', company: 'Samsung' },
+    { sku: 'LG-OLED-C3', name: 'LG OLED C3', category: 'electronics', company: 'LG' },
+    { sku: 'SONY-BRAVIA-X90', name: 'Sony Bravia X90K', category: 'electronics', company: 'Sony' },
+
+    // Automotive
+    { sku: 'HONDA-CIVIC-2022', name: 'Honda Civic 2022', category: 'automotive', company: 'Honda' },
+    { sku: 'HONDA-ACCORD-2023', name: 'Honda Accord 2023', category: 'automotive', company: 'Honda' },
+    { sku: 'TOYOTA-CAMRY-2023', name: 'Toyota Camry 2023', category: 'automotive', company: 'Toyota' },
+    { sku: 'TOYOTA-COROLLA-2022', name: 'Toyota Corolla 2022', category: 'automotive', company: 'Toyota' },
+    { sku: 'FORD-F150-2023', name: 'Ford F-150 2023', category: 'automotive', company: 'Ford' },
+    { sku: 'FORD-MUSTANG-2022', name: 'Ford Mustang 2022', category: 'automotive', company: 'Ford' },
+
+    // Appliances
+    { sku: 'WHIRLPOOL-WFW5605', name: 'Whirlpool Washer WFW5605', category: 'appliance', company: 'Whirlpool' },
+    { sku: 'WHIRLPOOL-WED5605', name: 'Whirlpool Dryer WED5605', category: 'appliance', company: 'Whirlpool' },
+    { sku: 'GE-GTE18', name: 'GE Refrigerator GTE18', category: 'appliance', company: 'GE Appliances' },
+    { sku: 'LG-WM4000', name: 'LG Washing Machine WM4000', category: 'appliance', company: 'LG' },
+    { sku: 'SAMSUNG-RF28', name: 'Samsung Refrigerator RF28', category: 'appliance', company: 'Samsung' },
+
+    // General
+    { sku: 'SAMPLE-SKU-001', name: 'Sample Smart Speaker', category: 'general', company: 'Apple' }
+  ];
+
+  for (const product of products) {
+    const company = companyMap.get(product.company);
+    if (company) {
+      await prisma.product.upsert({
+        where: { sku: product.sku },
+        update: {},
+        create: {
+          sku: product.sku,
+          name: product.name,
+          category: product.category,
+          companyId: company.id
+        }
+      });
+      console.log(`Created product: ${product.name}`);
     }
-  });
+  }
 
-  console.log('Created sample company:', sampleCompany);
-
-  // Seed a sample Product
-  const sampleProduct = await prisma.product.upsert({
-    where: { sku: 'SAMPLE-SKU-001' },
-    update: {},
-    create: {
-      sku: 'SAMPLE-SKU-001',
-      name: 'Sample Smart Speaker',
-      category: 'electronics',
-      companyId: sampleCompany.id
-    }
-  });
-
-  console.log('Created sample product:', sampleProduct);
-
-  // Create a few sample events for the product (without scores initially)
-  const recallEvent = await prisma.event.create({
-    data: {
-      productId: sampleProduct.id,
-      companyId: sampleCompany.id,
-      source: 'CPSC',
-      type: 'recall',
-      severity: 3.0,
-      detailsJson: JSON.stringify({
-        title: 'Fire Hazard',
-        description: 'Battery may overheat',
-        date: '2024-01-15',
-        units_affected: 10000
-      }),
-      rawUrl: 'https://www.cpsc.gov/Recalls/2024/sample-recall',
-      parsedAt: new Date()
-    }
-  });
-
-  const complaintEvent = await prisma.event.create({
-    data: {
-      productId: sampleProduct.id,
-      companyId: sampleCompany.id,
-      source: 'CFPB',
-      type: 'complaint',
-      severity: 2.0,
-      detailsJson: JSON.stringify({
-        issue: 'Product quality',
-        status: 'resolved',
-        resolution_time_days: 7
-      }),
-      rawUrl: 'https://www.consumerfinance.gov/data-research/consumer-complaints/',
-      parsedAt: new Date()
-    }
-  });
-
-  console.log('Created sample events:', { recallEvent, complaintEvent });
+  console.log(`Database seed completed successfully! Created ${companies.length} companies and ${products.length} products.`);
 
   console.log('Database seed completed successfully!');
 }

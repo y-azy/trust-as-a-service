@@ -11,6 +11,7 @@ import { healthController } from './controllers/healthController';
 import { disputeController } from './controllers/disputeController';
 import { internalController, resolveValidation } from './controllers/internalController';
 import { searchController } from './controllers/searchController';
+import { chatController } from './controllers/chatController';
 
 // Import middleware
 import { apiKeyMiddleware } from './middleware/auth';
@@ -55,19 +56,24 @@ app.get('/api/trust/company/:id', trustController.getCompanyTrust);
 
 // Products endpoints
 app.get('/api/products/featured', trustController.getFeaturedProducts);
+app.get('/api/products/popular', trustController.getPopularProducts);
 app.get('/api/products/search', trustController.searchProducts);
 
 // Search endpoint (resolver-based)
 app.get('/api/search', searchController.search);
 
-// Dashboard endpoints
+// Dashboard and Stats endpoints
 app.get('/api/dashboard/stats', trustController.getDashboardStats);
+app.get('/api/stats', trustController.getStats);
 
 // Recommendation endpoint
 app.get('/api/recommendations/:sku', recommendationController.getRecommendations);
 
 // Dispute endpoint
 app.post('/api/dispute', disputeController.submitDispute);
+
+// Chat endpoint
+app.post('/api/chat', chatController.chat);
 
 // Internal endpoints (require auth)
 app.post('/internal/search/run', internalController.runSearchPipeline);

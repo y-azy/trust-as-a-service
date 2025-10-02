@@ -17,12 +17,13 @@
     "prisma:studio": "prisma studio",
     "seed": "ts-node prisma/seed.ts",
     "recompute": "ts-node src/jobs/scoreRecompute.ts",
+    "populate-data": "npm run seed && ts-node src/scripts/populateRealData.ts",
     "connector:nhtsa": "ts-node src/connectors/nhtsaConnector.ts --run",
     "connector:cpsc": "ts-node src/connectors/cpscConnector.ts --run",
     "connector:cfpb": "ts-node src/connectors/cfpbConnector.ts --run"
   },
   "dependencies": {
-    "@prisma/client": "^5.0.0",
+    "@prisma/client": "^5.22.0",
     "aws-sdk": "^2.1400.0",
     "axios": "^1.5.0",
     "bull": "^4.11.3",

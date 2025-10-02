@@ -10,6 +10,21 @@ jobs:
   test-backend:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v3
 
@@ -24,16 +39,22 @@ jobs:
         working-directory: ./backend
         run: npm ci
 
+      - name: Generate Prisma Client
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
+        run: npx prisma generate
+
       - name: Run Prisma migrations
         working-directory: ./backend
         env:
-          DATABASE_URL: file:./test.db
-        run: npx prisma migrate dev --name ci_test
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
+        run: npx prisma db push
 
       - name: Run backend tests
         working-directory: ./backend
         env:
-          DATABASE_URL: file:./test.db
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: npm test
 

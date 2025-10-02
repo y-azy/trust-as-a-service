@@ -39,6 +39,7 @@ export default function Dashboard() {
   const router = useRouter()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d' | '1y'>('30d')
   const [exportFormat, setExportFormat] = useState<'csv' | 'json' | 'pdf'>('csv')
 
@@ -48,6 +49,7 @@ export default function Dashboard() {
 
   const fetchDashboardStats = async () => {
     setLoading(true)
+    setError(null)
     try {
       const response = await axios.get(
         `${process.env.NEXT_PUBLIC_API_URL}/api/dashboard/stats?range=${dateRange}`,
@@ -58,42 +60,10 @@ export default function Dashboard() {
         }
       )
       setStats(response.data)
-    } catch (error) {
-      console.error('Failed to fetch dashboard stats:', error)
-      // Use mock data for demonstration
-      setStats({
-        totalProducts: 156,
-        avgTrustScore: 72,
-        topProducts: [
-          { sku: 'APPLE-IPHONE-13', name: 'iPhone 13 Pro Max', score: 88, grade: 'A' },
-          { sku: 'BOSE-QC45', name: 'Bose QuietComfort 45', score: 85, grade: 'A' },
-          { sku: 'SAMSUNG-WF45', name: 'Samsung Washer WF45', score: 82, grade: 'B' }
-        ],
-        scoreDistribution: { A: 23, B: 45, C: 56, D: 22, F: 10 },
-        recentAlerts: [
-          {
-            id: '1',
-            type: 'recall',
-            product: 'Honda Civic 2022',
-            severity: 'high',
-            date: '2025-09-28',
-            message: 'Airbag deployment issue detected'
-          },
-          {
-            id: '2',
-            type: 'complaint',
-            product: 'Samsung TV Q80',
-            severity: 'medium',
-            date: '2025-09-27',
-            message: 'Multiple user complaints about screen flickering'
-          }
-        ],
-        trendData: [
-          { date: '2025-09-01', avgScore: 70, productCount: 120 },
-          { date: '2025-09-15', avgScore: 71, productCount: 135 },
-          { date: '2025-09-29', avgScore: 72, productCount: 156 }
-        ]
-      })
+    } catch (err) {
+      console.error('Failed to fetch dashboard stats:', err)
+      setError('Failed to load dashboard statistics. Please try again later.')
+      setStats(null)
     } finally {
       setLoading(false)
     }
@@ -153,14 +123,6 @@ export default function Dashboard() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    )
-  }
-
   return (
     <>
       <Head>
@@ -207,8 +169,31 @@ export default function Dashboard() {
         </header>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* KPI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          {/* Loading State */}
+          {loading && (
+            <div className="flex items-center justify-center py-20">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            </div>
+          )}
+
+          {/* Error State */}
+          {!loading && error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-8 text-center">
+              <p className="text-red-700 mb-4">{error}</p>
+              <button
+                onClick={fetchDashboardStats}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Try Again
+              </button>
+            </div>
+          )}
+
+          {/* Content - Only show if not loading and no error */}
+          {!loading && !error && stats && (
+            <>
+              {/* KPI Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-gray-600">Total Products</span>
@@ -392,6 +377,8 @@ export default function Dashboard() {
               Export trust score data for the selected time period in your preferred format
             </p>
           </div>
+            </>
+          )}
         </div>
       </div>
     </>

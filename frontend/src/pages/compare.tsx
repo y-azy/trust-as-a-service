@@ -25,6 +25,7 @@ export default function ComparePage() {
   const [availableProducts, setAvailableProducts] = useState<Product[]>([])
   const [searchResults, setSearchResults] = useState<Product[]>([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [compareMode, setCompareMode] = useState<'select' | 'comparing'>('select')
 
   useEffect(() => {
@@ -42,6 +43,7 @@ export default function ComparePage() {
 
   const fetchPopularProducts = async () => {
     setLoading(true)
+    setError(null)
     try {
       const response = await axios.get(
         `${process.env.NEXT_PUBLIC_API_URL}/api/products/popular`,
@@ -53,68 +55,11 @@ export default function ComparePage() {
       )
       setAvailableProducts(response.data)
       setSearchResults(response.data)
-    } catch (error) {
-      console.error('Failed to fetch products:', error)
-      // Use mock data for demonstration
-      const mockProducts: Product[] = [
-        {
-          sku: 'IPHONE-13-PRO-MAX',
-          name: 'iPhone 13 Pro Max',
-          brand: 'Apple',
-          score: 88,
-          grade: 'A',
-          policyScore: 90,
-          companyScore: 92,
-          price: 1099,
-          warrantyMonths: 12
-        },
-        {
-          sku: 'BOSE-QC45',
-          name: 'Bose QuietComfort 45',
-          brand: 'Bose',
-          score: 85,
-          grade: 'A',
-          policyScore: 82,
-          companyScore: 88,
-          price: 329,
-          warrantyMonths: 12
-        },
-        {
-          sku: 'SAMSUNG-WF45',
-          name: 'Samsung Washer WF45',
-          brand: 'Samsung',
-          score: 82,
-          grade: 'B',
-          policyScore: 78,
-          companyScore: 80,
-          price: 899,
-          warrantyMonths: 24
-        },
-        {
-          sku: 'SONY-WH1000XM5',
-          name: 'Sony WH-1000XM5',
-          brand: 'Sony',
-          score: 86,
-          grade: 'A',
-          policyScore: 84,
-          companyScore: 85,
-          price: 399,
-          warrantyMonths: 12
-        },
-        {
-          sku: 'LG-OLED-C3',
-          name: 'LG OLED C3 TV',
-          brand: 'LG',
-          score: 84,
-          grade: 'B',
-          policyScore: 82,
-          companyScore: 83,
-          price: 1499,
-          warrantyMonths: 12
-        }
-      ]
-      setAvailableProducts(mockProducts)
-      setSearchResults(mockProducts)
+    } catch (err) {
+      console.error('Failed to fetch products:', err)
+      setError('Failed to load products. Please try again later.')
+      setAvailableProducts([])
+      setSearchResults([])
     } finally {
       setLoading(false)
     }
@@ -290,6 +235,20 @@ export default function ComparePage() {
               {loading ? (
                 <div className="flex justify-center py-12">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                </div>
+              ) : error ? (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-8 text-center">
+                  <p className="text-red-700 mb-4">{error}</p>
+                  <button
+                    onClick={fetchPopularProducts}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              ) : searchResults.length === 0 ? (
+                <div className="text-center py-12 bg-gray-50 rounded-lg">
+                  <p className="text-gray-500">No products found. Try adjusting your search filters.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
